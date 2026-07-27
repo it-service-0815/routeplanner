@@ -1,1 +1,3 @@
-self.addEventListener('install',()=>self.skipWaiting()); self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))));
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return; event.respondWith(fetch(event.request,{cache:'no-store'}).catch(()=>caches.match(event.request)));});
