@@ -1,12 +1,12 @@
 {
-  "version": "5.4.3",
+  "version": "5.5.0",
   "released": "2026-07-27",
-  "title": "Engelhard Product Experience",
+  "title": "Deine persönliche Planungszentrale",
   "changes": [
-    "Das neue Engelhard-Design integriert die geflügelte Bildmarke und das charakteristische Dunkelblau.",
-    "Die Desktop-Woche zeigt große, gut lesbare Tageskarten mit vollständigen Apothekennamen.",
-    "Apotheken lassen sich in der Woche verschieben oder mit empfohlenen Besuchen tauschen.",
-    "Manuelle Planänderungen können jetzt zuverlässig direkt rückgängig gemacht werden.",
-    "Die Karte kennzeichnet transparent, dass OSM/OSRM aktuell keine Live-Verkehrsdaten liefert."
+    "Die Mehr-Seite ist auf Desktop als übersichtliche persönliche Planungszentrale neu gestaltet.",
+    "Optimierungsziel, Terminpuffer und maximale Tagesfahrzeit lassen sich individuell festlegen.",
+    "Für die Cluster A bis E können eigene Standard-Besuchszeiten gepflegt werden.",
+    "Übernachtungen berücksichtigen jetzt konfigurierbare Mindestwerte für Zeit- oder Kilometerersparnis.",
+    "Updates, Versionsstand und Datenstatus sind in einem eigenen Bereich gebündelt."
   ]
 }
