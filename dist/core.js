@@ -91,7 +91,7 @@ export function optimize(ids, settings=defaultSettings){
   const remaining=ids.map(byId), result=[]; let current={lat:settings.homeLat,lng:settings.homeLng};
   while(remaining.length){
     remaining.sort((a,b)=>{
-      const priority={A:0,B:12,C:24};
+      const priority={A:0,B:12,C:24,D:36,E:48};
       return kmBetween(current,a)+priority[a.priority]-(kmBetween(current,b)+priority[b.priority]);
     });
     const next=remaining.shift(); result.push(next.id); current=next;
@@ -105,8 +105,34 @@ export function cycleCoverage(plan){
 }
 export function overnightRecommendation(metrics, settings=defaultSettings){
   const savedKm=Math.max(0,Math.round(metrics.distance*.42)), savedMinutes=Math.max(0,metrics.homeDrive-12);
-  const benefit=Math.round(savedKm*settings.kmCost+savedMinutes/60*settings.hourlyValue);
-  return {savedKm,savedMinutes,benefit,recommended:settings.overnight&&benefit>settings.hotelLimit};
+  const mileageValue=Math.round(savedKm*settings.kmCost);
+  const timeValue=Math.round(savedMinutes/60*settings.hourlyValue);
+  const benefit=mileageValue+timeValue;
+  const netBenefit=benefit-settings.hotelLimit;
+  return {
+    savedKm,savedMinutes,mileageValue,timeValue,benefit,netBenefit,
+    recommended:settings.overnight&&netBenefit>0,
+    reason:!settings.overnight
+      ?'Übernachtungen sind in deinen Einstellungen deaktiviert.'
+      :netBenefit>0
+        ?`${benefit} € Zeit- und Fahrtkostenvorteil übersteigen dein Hotelbudget um ${netBenefit} €.`
+        :`${benefit} € Zeit- und Fahrtkostenvorteil liegen ${Math.abs(netBenefit)} € unter deinem Hotelbudget.`
+  };
+}
+
+export function visitReason(pharmacy, ids=[], settings=defaultSettings){
+  const daysSince=Math.max(0,Math.round((new Date(`${settings.cycleStart}T12:00:00`)-new Date(`${pharmacy.lastVisit}T12:00:00`))/86400000));
+  const sameRegion=ids.map(byId).filter(Boolean).filter(p=>p.city===pharmacy.city).length;
+  const importance={A:'höchste Umsatzpriorität',B:'hohe Umsatzpriorität',C:'reguläre Abdeckung',D:'ergänzende Abdeckung',E:'Basisabdeckung'}[pharmacy.priority];
+  const signals=[importance,`${daysSince} Tage seit dem letzten Besuch`];
+  if(sameRegion>1)signals.push(`mit ${sameRegion-1} weiteren Besuchen in ${pharmacy.city} gebündelt`);
+  return signals.join(' · ');
+}
+
+export function dayCapacity(ids,settings=defaultSettings){
+  const metrics=dayMetrics(ids,settings);
+  const available=Math.max(1,minutes(settings.workEnd)-minutes(settings.workStart));
+  return {...metrics,available,utilization:Math.round(metrics.total/available*100),remaining:available-metrics.total};
 }
 
 export function workDates(settings=defaultSettings){
@@ -124,14 +150,14 @@ export function optimizeCycle(settings=defaultSettings,fixed={}){
   Object.entries(fixed).forEach(([id,date])=>{if(plan[date]&&byId(id)){plan[date].push(id);assigned.add(id)}});
   const priority={A:0,B:1,C:2,D:3,E:4};
   const queue=pharmacies.filter(p=>!assigned.has(p.id)).sort((a,b)=>priority[a.priority]-priority[b.priority]||a.lastVisit.localeCompare(b.lastVisit));
-  const target=Math.max(1,Math.ceil(pharmacies.length/dates.length));
   queue.forEach(p=>{
-    const candidates=dates.filter(date=>plan[date].length<target+1);
-    const date=[...(candidates.length?candidates:dates)].sort((a,b)=>{
+    const date=[...dates].sort((a,b)=>{
       const lastA=byId(plan[a][plan[a].length-1]), lastB=byId(plan[b][plan[b].length-1]);
       const distA=lastA?kmBetween(lastA,p):kmBetween({lat:settings.homeLat,lng:settings.homeLng},p);
       const distB=lastB?kmBetween(lastB,p):kmBetween({lat:settings.homeLat,lng:settings.homeLng},p);
-      return plan[a].length-plan[b].length||distA-distB;
+      const loadA=dayMetrics(plan[a],settings).total+Number(p.duration)+Math.round(distA/.72);
+      const loadB=dayMetrics(plan[b],settings).total+Number(p.duration)+Math.round(distB/.72);
+      return loadA-loadB||distA-distB;
     })[0];
     plan[date].push(p.id);
   });
@@ -150,7 +176,9 @@ export function rebalanceWeek(plan,dates,fixed={},settings=defaultSettings){
     const date=[...dates].sort((a,b)=>{
       const aLast=byId(next[a].at(-1)),bLast=byId(next[b].at(-1));
       const aDist=aLast?kmBetween(aLast,p):0,bDist=bLast?kmBetween(bLast,p):0;
-      return next[a].length-next[b].length||aDist-bDist;
+      const loadA=dayMetrics(next[a],settings).total+Number(p.duration)+Math.round(aDist/.72);
+      const loadB=dayMetrics(next[b],settings).total+Number(p.duration)+Math.round(bDist/.72);
+      return loadA-loadB||aDist-bDist;
     })[0];
     next[date].push(id);
   });
