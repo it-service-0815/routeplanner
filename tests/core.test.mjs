@@ -4,6 +4,7 @@ import {
   pharmacies, initialPlan, defaultSettings, dayMetrics,
   optimize, cycleCoverage, overnightRecommendation
 } from '../dist/core.js';
+import {routeByRoad} from '../dist/routing.js';
 
 test('synthetic master data is complete and unique', () => {
   assert.equal(pharmacies.length, 25);
@@ -37,4 +38,25 @@ test('coverage and overnight recommendation are calculated', () => {
   );
   assert.equal(typeof recommendation.benefit, 'number');
   assert.equal(typeof recommendation.recommended, 'boolean');
+});
+
+test('road routing normalizes OSRM distance, duration, legs and geometry', async () => {
+  globalThis.localStorage={
+    values:{},
+    getItem(key){return this.values[key]||null},
+    setItem(key,value){this.values[key]=value}
+  };
+  globalThis.fetch=async () => ({
+    ok:true,
+    async json(){return {routes:[{
+      distance:42750,duration:4380,
+      geometry:{coordinates:[[8.8,50.195],[8.738,50.179],[8.8,50.195]]},
+      legs:[{distance:18000,duration:1800},{distance:24750,duration:2580}]
+    }]}}
+  });
+  const route=await routeByRoad(['a01'],defaultSettings,{fresh:true});
+  assert.equal(route.distance,43);
+  assert.equal(route.drive,73);
+  assert.deepEqual(route.geometry[0],[50.195,8.8]);
+  assert.equal(route.legs.length,2);
 });
