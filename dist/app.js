@@ -2,7 +2,8 @@ import {pharmacies,defaultSettings,initialPlan,byId,dayMetrics,optimize,cycleCov
 
 const clone=v=>JSON.parse(JSON.stringify(v));
 const stored=JSON.parse(localStorage.getItem('routeplanner-r3')||'null');
-const state=stored||{view:'today',selectedDate:'2026-08-03',plan:clone(initialPlan),settings:clone(defaultSettings),editing:false,query:'',drawer:null};
+const state=stored||{view:'today',selectedDate:'2026-08-03',plan:clone(initialPlan),settings:clone(defaultSettings),editing:false,query:'',drawer:null,picker:false,pickerQuery:'',pickerPriority:'all'};
+state.picker=false; state.pickerQuery=state.pickerQuery||''; state.pickerPriority=state.pickerPriority||'all';
 const app=document.querySelector('#app'), toast=document.querySelector('#toast');
 const icons={
   today:'<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10M9 20v-6h6v6"/></svg>',
@@ -29,8 +30,8 @@ function shell(content){
     <div class="brand"><span class="brand-mark">e</span><span><b>Engelhard</b><small>Routenplaner</small></span></div>
     <nav>${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>
     <div class="profile"><span>AJ</span><div><b>Alex Jaquet</b><small>Außendienst · Rhein-Main</small></div></div>
-  </aside><main><div class="mobile-top"><div class="brand"><span class="brand-mark">e</span><b>Routenplaner</b></div><span class="avatar">AJ</span></div>${content}</main>
-  <nav class="bottom-nav">${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>${drawer()}</div>`;
+  </aside><main><div class="mobile-top"><div class="brand"><span class="brand-mark">e</span><span><b>Routenplaner</b><small>Engelhard</small></span></div><span class="avatar">AJ</span></div>${content}</main>
+  <nav class="bottom-nav">${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>${drawer()}${picker()}</div>`;
 }
 function top(kicker,title,actions=''){return `<header class="page-head"><div><span class="eyebrow">${kicker}</span><h1>${title}</h1></div><div class="actions">${actions}<span class="avatar desktop">AJ</span></div></header>`}
 const button=(label,id,style='secondary',icon='')=>`<button id="${id}" class="button ${style}">${icon}${label}</button>`;
@@ -44,12 +45,11 @@ function map(ids,metrics){
 }
 function today(){
   const ids=state.plan[state.selectedDate]||[], metrics=dayMetrics(ids,state.settings), over=overnightRecommendation(metrics,state.settings);
-  return shell(`${top(dateLabel(state.selectedDate).toUpperCase(),'Dein optimaler Tag',`${button('Optimieren','optimize','ghost',icons.spark)}${button(state.editing?'Fertig':'Plan anpassen','edit','primary')}`)}
-    <section class="hero"><div><span class="hero-label"><i></i> Plan ist realistisch</span><h2>Guten Morgen, Alex.</h2><p>${ids.length} passende Apotheken · Rückkehr um ${metrics.end} Uhr</p></div><div class="hero-score"><span>Planqualität</span><b>Sehr gut</b></div></section>
-    <section class="metrics"><article><span>Besuche</span><b>${ids.length}</b><small>${metrics.visit} Min. Kundentermine</small></article><article><span>Fahrzeit</span><b>${fmtMinutes(metrics.drive)}</b><small>${metrics.distance} km Gesamtstrecke</small></article><article><span>Tagesende</span><b>${metrics.end}</b><small class="${metrics.overtime?'warning':'positive'}">${metrics.overtime?`${metrics.overtime} Min. über Arbeitszeit`:'Innerhalb deiner Arbeitszeit'}</small></article></section>
-    <div class="today-grid">${map(ids,metrics)}<section class="route-card"><div class="section-head"><div><span class="eyebrow">TAGESPLAN</span><h3>Empfohlene Reihenfolge</h3></div><span class="status-pill">Optimiert</span></div>
+  return shell(`${top(dateLabel(state.selectedDate).toUpperCase(),'Heute',`${button('Neu planen','optimize','ghost',icons.spark)}${button(state.editing?'Fertig':'Bearbeiten','edit','primary')}`)}
+    <section class="hero"><div><span class="hero-label"><i></i> Dein Plan ist bereit</span><h2>Guten Morgen, Alex.</h2><p>${ids.length} Apotheken liegen heute sinnvoll auf deiner Route.</p><div class="hero-facts"><span><b>${metrics.end}</b> zurück</span><span><b>${metrics.distance} km</b> Strecke</span><span><b>${fmtMinutes(metrics.drive)}</b> Fahrt</span></div></div><div class="hero-score"><span>Planqualität</span><b>Sehr gut</b><small>A-Prioritäten berücksichtigt</small></div></section>
+    <div class="today-grid">${map(ids,metrics)}<section class="route-card"><div class="section-head"><div><span class="eyebrow">DEIN TAG</span><h3>${ids.length} Besuche · Ende ${metrics.end}</h3></div><span class="status-pill">Optimiert</span></div>
       <div id="route-list">${metrics.stops.map((p,i)=>stop(p,i)).join('')||empty('Noch keine Besuche','Füge Apotheken hinzu oder lasse den Tag optimieren.')}</div>
-      ${state.editing?`<button id="add-stop" class="add-button">${icons.plus} Apotheke hinzufügen</button>`:`<p class="help">„Plan anpassen“ öffnet die manuelle Bearbeitung.</p>`}
+      ${state.editing?`<button id="add-stop" class="add-button">${icons.plus} Apotheke auswählen</button>`:`<p class="help">Tippe auf „Bearbeiten“, um den Tagesplan anzupassen.</p>`}
     </section></div>
     <section class="insight ${over.recommended?'hotel':''}"><span class="insight-icon">${over.recommended?'H':'✓'}</span><div><span class="eyebrow">SMARTE EMPFEHLUNG</span><h3>${over.recommended?'Übernachtung wirtschaftlich sinnvoll':'Heute entspannt nach Hause'}</h3><p>${over.recommended?`Du sparst etwa ${over.savedMinutes} Minuten und ${over.savedKm} km. Wirtschaftlicher Vorteil: ${over.benefit} €.`:`Die Heimfahrt dauert etwa ${metrics.homeDrive} Minuten. Eine Übernachtung erzeugt heute keinen wirtschaftlichen Vorteil.`}</p></div><button class="text-button" id="show-insight">Warum?</button></section>`);
 }
@@ -89,6 +89,20 @@ function drawer(){
   const p=byId(state.drawer);
   return `<div class="scrim" data-close><aside class="drawer"><button class="drawer-close" data-close>×</button><span class="store-symbol large">${icons.stores}</span><span class="priority p-${p.priority}">Priorität ${p.priority}</span><h2>${p.name}</h2><p>${p.street}<br>${p.zip} ${p.city}</p><div class="detail-grid"><span><small>Besuchsdauer</small><b>${p.duration} Min.</b></span><span><small>Letzter Besuch</small><b>${new Intl.DateTimeFormat('de-DE').format(new Date(p.lastVisit))}</b></span></div><a class="button primary full" href="${navUrl(p)}" target="_blank">${icons.nav} Navigation starten</a></aside></div>`;
 }
+function picker(){
+  if(!state.picker)return '';
+  const current=state.plan[state.selectedDate]||[], base=dayMetrics(current,state.settings), plannedDates={};
+  Object.entries(state.plan).forEach(([date,ids])=>ids.forEach(id=>plannedDates[id]=date));
+  const matches=pharmacies.filter(p=>`${p.name} ${p.city} ${p.zip} ${p.street}`.toLowerCase().includes(state.pickerQuery.toLowerCase())&&(state.pickerPriority==='all'||p.priority===state.pickerPriority));
+  return `<div class="picker-scrim"><section class="picker-sheet"><header class="picker-head"><div><span class="eyebrow">TAGESPLAN ERGÄNZEN</span><h2>Apotheke auswählen</h2><p>Du siehst sofort, wie sich deine Auswahl auf den Tag auswirkt.</p></div><button id="picker-close" aria-label="Auswahl schließen">×</button></header>
+    <div class="picker-tools"><label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="picker-search" value="${state.pickerQuery}" placeholder="Apotheke, Ort oder PLZ"></label><div class="filter-chips">${['all','A','B','C'].map(x=>`<button data-picker-priority="${x}" class="${state.pickerPriority===x?'active':''}">${x==='all'?'Alle':`Priorität ${x}`}</button>`).join('')}</div></div>
+    <div class="picker-list">${matches.map(p=>{
+      const isCurrent=current.includes(p.id), existing=plannedDates[p.id], next=dayMetrics([...current,p.id],state.settings);
+      const extraKm=Math.max(0,next.distance-base.distance), extraMin=Math.max(0,next.total-base.total);
+      return `<article class="${isCurrent?'disabled':''}"><span class="store-symbol">${icons.stores}</span><button class="picker-copy" data-open="${p.id}"><span><b>${p.name}</b><small>${p.street}, ${p.zip} ${p.city}</small></span><i class="priority p-${p.priority}">${p.priority}</i></button><div class="impact"><span>+${extraMin} Min.</span><small>+${extraKm} km</small></div><div class="visit-meta"><span>${p.duration} Min. Besuch</span><small>Zuletzt ${new Intl.DateTimeFormat('de-DE').format(new Date(p.lastVisit))}</small></div>${isCurrent?'<span class="planned-badge">Im Tagesplan</span>':`<button class="picker-add" data-pick="${p.id}">${existing?'Verschieben':'Hinzufügen'}</button>`}</article>`;
+    }).join('')||empty('Keine Apotheke gefunden','Passe Suche oder Filter an.')}</div>
+    <footer><span>${matches.length} Apotheken</span><button id="picker-done" class="button primary">Fertig</button></footer></section></div>`;
+}
 function render(){
   app.innerHTML=state.view==='today'?today():state.view==='week'?week():state.view==='cycle'?cycle():state.view==='stores'?stores():settings();
   bind();
@@ -108,7 +122,7 @@ function bind(){
         el.ondragover=e=>{e.preventDefault();const drag=document.querySelector('.dragging');if(drag&&drag!==el)el.parentNode.insertBefore(drag,e.clientY>el.getBoundingClientRect().top+el.offsetHeight/2?el.nextSibling:el)};
         el.querySelector('.remove').onclick=()=>{state.plan[state.selectedDate]=state.plan[state.selectedDate].filter(id=>id!==el.dataset.stop);save();render()};
       });
-      document.querySelector('#add-stop').onclick=()=>{const id=pharmacies.find(p=>!state.plan[state.selectedDate].includes(p.id))?.id;if(id){state.plan[state.selectedDate].push(id);save();render();flash('Apotheke zum Tagesplan hinzugefügt')}};
+      document.querySelector('#add-stop').onclick=()=>{state.picker=true;state.pickerQuery='';state.pickerPriority='all';render()};
     }
   }
   if(state.view==='week'){
@@ -123,6 +137,17 @@ function bind(){
   if(state.view==='settings'){
     document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.setting]=el.type==='number'?Number(el.value):el.value;save();flash('Einstellung gespeichert')});
     document.querySelector('#overnight').onchange=e=>{state.settings.overnight=e.target.checked;save();flash('Übernachtungslogik aktualisiert')};
+  }
+  if(state.picker){
+    document.querySelector('#picker-close').onclick=document.querySelector('#picker-done').onclick=()=>{state.picker=false;render()};
+    document.querySelector('#picker-search').oninput=e=>{state.pickerQuery=e.target.value;render();requestAnimationFrame(()=>{const input=document.querySelector('#picker-search');input.focus();input.setSelectionRange(input.value.length,input.value.length)})};
+    document.querySelectorAll('[data-picker-priority]').forEach(el=>el.onclick=()=>{state.pickerPriority=el.dataset.pickerPriority;render()});
+    document.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>{
+      const id=el.dataset.pick;
+      Object.keys(state.plan).forEach(date=>state.plan[date]=state.plan[date].filter(x=>x!==id));
+      state.plan[state.selectedDate].push(id); state.plan[state.selectedDate]=optimize(state.plan[state.selectedDate],state.settings);
+      save(); state.picker=false; render(); flash('Apotheke hinzugefügt und Route aktualisiert');
+    });
   }
 }
 render();
