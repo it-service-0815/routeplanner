@@ -1,10 +1,11 @@
 {
-  "version": "5.1.2",
+  "version": "5.4.0",
   "released": "2026-07-27",
-  "title": "Verbesserte mobile Bedienung",
+  "title": "Engelhard Product Experience",
   "changes": [
-    "Die Begrüßung passt sich jetzt automatisch der Tageszeit an.",
-    "Die Woche zeigt auf dem Smartphone jeden Tag als gut lesbare eigene Karte.",
-    "Die Optimierung der Verkaufsrunde ist jetzt deutlich sichtbarer und verständlicher platziert."
+    "Das neue Engelhard-Design integriert die geflügelte Bildmarke und das charakteristische Dunkelblau.",
+    "Apotheken lassen sich in der Woche verschieben oder mit empfohlenen Besuchen tauschen.",
+    "Manuelle Planänderungen können direkt rückgängig gemacht werden.",
+    "Ein gekennzeichneter Präsentationsmodus und neue Lade- und Fehlerzustände machen den POC vorführbereit."
   ]
 }
