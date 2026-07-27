@@ -187,6 +187,16 @@ export function rebalanceWeek(plan,dates,fixed={},settings=defaultSettings){
   return next;
 }
 
+export function swapVisits(plan,first,second,settings=defaultSettings){
+  const next=JSON.parse(JSON.stringify(plan));
+  const firstDate=Object.keys(next).find(date=>(next[date]||[]).includes(first));
+  const secondDate=Object.keys(next).find(date=>(next[date]||[]).includes(second));
+  if(!firstDate||!secondDate||firstDate===secondDate)return next;
+  next[firstDate]=optimize(next[firstDate].map(id=>id===first?second:id),settings);
+  next[secondDate]=optimize(next[secondDate].map(id=>id===second?first:id),settings);
+  return next;
+}
+
 export function planIntegrity(plan){
   const ids=Object.values(plan).flat(), unique=new Set(ids), known=new Set(pharmacies.map(p=>p.id));
   return {
