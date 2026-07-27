@@ -5,6 +5,7 @@ const clone=v=>JSON.parse(JSON.stringify(v));
 const stored=JSON.parse(localStorage.getItem('routeplanner-r3')||'null');
 const state=stored||{view:'today',selectedDate:'2026-08-03',plan:clone(initialPlan),settings:clone(defaultSettings),editing:false,query:'',drawer:null,picker:false,pickerQuery:'',pickerPriority:'all'};
 state.settings={...clone(defaultSettings),...(state.settings||{}),clusterDurations:{...defaultSettings.clusterDurations,...(state.settings?.clusterDurations||{})}};
+state.settings.vacations=Array.isArray(state.settings.vacations)?state.settings.vacations:[];
 state.picker=false; state.pickerQuery=state.pickerQuery||''; state.pickerPriority=state.pickerPriority||'all';
 state.baseline=state.baseline||clone(state.plan);
 state.fixed=state.fixed||{}; state.weekOffset=Number(state.weekOffset||0); state.moveVisit=null; state.storePriority=state.storePriority||'all';
@@ -128,7 +129,10 @@ function settings(){
       <div class="cluster-duration-grid">${['A','B','C','D','E'].map(key=>`<label><span class="priority p-${key}">${key}</span><b>Cluster ${key}</b><div><input type="number" data-cluster-duration="${key}" value="${s.clusterDurations[key]}" min="5" step="5"><i>Min.</i></div></label>`).join('')}</div>`,
     cycle:`${settingHead(icons.cycle,'Verkaufsrunde','Kapazität und Zeitraum für die vollständige Gebietsabdeckung.')}
       <div class="field-pair">${field('Startdatum','cycleStart','date',s.cycleStart)}${field('Enddatum','cycleEnd','date',s.cycleEnd)}</div>
-      <div class="settings-stat"><strong>${workDates(s).length}</strong><span>verfügbare Arbeitstage</span><small>${s.workdays.map(day=>dayNames[day]).join(', ')}</small></div>
+      <div class="settings-stat"><strong>${workDates(s).length}</strong><span>verfügbare Arbeitstage</span><small>${s.workdays.map(day=>dayNames[day]).join(', ')} · Urlaub bereits abgezogen</small></div>
+      <div class="vacation-section"><div class="vacation-head"><div><h3>Urlaubszeiten</h3><p>Diese Tage werden automatisch von deiner verfügbaren Kapazität abgezogen.</p></div><button id="vacation-add" class="button secondary">${icons.plus} Zeitraum</button></div>
+        <div class="vacation-list">${s.vacations.map((period,index)=>`<article><div class="vacation-dates"><label><span>Von</span><input type="date" data-vacation="${index}" data-vacation-key="start" value="${period.start||''}"></label><label><span>Bis</span><input type="date" data-vacation="${index}" data-vacation-key="end" value="${period.end||''}"></label></div><button data-vacation-remove="${index}" aria-label="Urlaubszeit entfernen">×</button></article>`).join('')||'<div class="vacation-empty">Noch keine Urlaubszeiten hinterlegt.</div>'}</div>
+      </div>
       <div class="setting-info"><b>Abdeckung</b><span>Alle ${pharmacies.length} Apotheken werden pro Verkaufsrunde genau einmal eingeplant.</span></div>`,
     costs:`${settingHead(icons.spark,'Übernachtung & Kosten','Empfehlungen erscheinen nur, wenn Kosten und Zeitgewinn deine Schwellen erreichen.')}
       ${toggleField('Übernachtungen berücksichtigen','overnight',s.overnight,'Aktiviert wirtschaftliche Übernachtungsempfehlungen.')}
@@ -136,7 +140,7 @@ function settings(){
       <div class="field-pair">${field('Kilometerkosten','kmCost','number',s.kmCost,'€',.01)}${field('Mindestens Zeit sparen','minOvernightSavingsMinutes','number',s.minOvernightSavingsMinutes,'Min.')}</div>
       ${field('Oder mindestens Strecke sparen','minOvernightSavingsKm','number',s.minOvernightSavingsKm,'km')}`,
     app:`${settingHead(icons.settings,'App & Daten','Versionsstand, Aktualisierung und sichere Präsentation.')}
-      <div class="app-status"><span class="app-status-icon">✓</span><div><b>Routenplaner ist aktuell</b><small>Version 5.5.1 · 275 synthetische Apotheken</small></div><button id="update-now" class="button secondary">Jetzt aktualisieren</button></div>
+      <div class="app-status"><span class="app-status-icon">✓</span><div><b>Routenplaner ist aktuell</b><small>Version 5.6.0 · 275 synthetische Apotheken</small></div><button id="update-now" class="button secondary">Jetzt aktualisieren</button></div>
       <div class="data-facts"><span><b>${pharmacies.length}</b><small>Apotheken</small></span><span><b>OSM / OSRM</b><small>Routing · kein Live-Verkehr</small></span><span><b>Lokal</b><small>Planung gespeichert</small></span></div>
       <div class="presentation-card"><div><h3>Präsentationsmodus</h3><p>Startet eine ruhige Demoansicht mit klarer Kennzeichnung der synthetischen Daten.</p></div><button id="presentation-start" class="button primary">${icons.spark} Präsentation starten</button></div>`
   };
@@ -316,10 +320,21 @@ function bind(){
     document.querySelectorAll('[data-store-priority]').forEach(el=>el.onclick=()=>{state.storePriority=el.dataset.storePriority;save();render()});
   }
   if(state.view==='settings'){
-    document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.setting]=el.type==='number'?Number(el.value):el.value;save();flash('Einstellung gespeichert')});
-    document.querySelectorAll('[data-toggle-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.toggleSetting]=el.checked;save();flash('Einstellung gespeichert')});
+    document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.setting]=el.type==='number'?Number(el.value):el.value;save();render();flash('Einstellung gespeichert · Planung aktualisiert')});
+    document.querySelectorAll('[data-toggle-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.toggleSetting]=el.checked;save();render();flash('Einstellung gespeichert · Planung aktualisiert')});
     document.querySelectorAll('[data-settings-section]').forEach(el=>el.onclick=()=>{state.settingsSection=el.dataset.settingsSection;save();render()});
-    document.querySelectorAll('[data-cluster-duration]').forEach(el=>el.onchange=()=>{state.settings.clusterDurations[el.dataset.clusterDuration]=Number(el.value);save();flash(`Standard für Cluster ${el.dataset.clusterDuration} gespeichert`)});
+    document.querySelectorAll('[data-cluster-duration]').forEach(el=>el.onchange=()=>{state.settings.clusterDurations[el.dataset.clusterDuration]=Number(el.value);save();render();flash(`Standard für Cluster ${el.dataset.clusterDuration} gespeichert`)});
+    document.querySelector('#vacation-add')?.addEventListener('click',()=>{state.settings.vacations.push({start:'',end:''});save();render()});
+    document.querySelectorAll('[data-vacation]').forEach(el=>el.onchange=()=>{
+      const index=Number(el.dataset.vacation),key=el.dataset.vacationKey;
+      state.settings.vacations[index][key]=el.value;
+      const period=state.settings.vacations[index];
+      if(period.start&&period.end&&period.start>period.end){
+        state.settings.vacations[index][key==='start'?'end':'start']=el.value;
+      }
+      save();render();flash('Urlaubszeit gespeichert · Arbeitstage neu berechnet');
+    });
+    document.querySelectorAll('[data-vacation-remove]').forEach(el=>el.onclick=()=>{state.settings.vacations.splice(Number(el.dataset.vacationRemove),1);save();render();flash('Urlaubszeit entfernt · Arbeitstage neu berechnet')});
     document.querySelector('#presentation-start')?.addEventListener('click',()=>{state.presentation=true;state.view='today';save();render();flash('Präsentationsmodus gestartet')});
     document.querySelector('#update-now')?.addEventListener('click',async()=>{flash('Update wird geprüft …');const registration=await navigator.serviceWorker?.getRegistration();await registration?.update();location.reload()});
     document.querySelectorAll('[data-workday]').forEach(el=>el.onchange=()=>{
