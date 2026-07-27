@@ -19,8 +19,9 @@ function App() {
   const [traffic, setTraffic] = useState(true);
   const [selectedPharmacy, setSelectedPharmacy] = useState<Pharmacy | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  React.useEffect(() => { fetch(`/routeplanner/version.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).then(v => { if (v.version && v.version !== appVersion && localStorage.getItem('routeplanner-version-seen') !== v.version) setUpdateAvailable(true); }).catch(() => undefined); }, []);
-  const refreshApp = async () => { localStorage.setItem('routeplanner-version-seen', appVersion); if ('serviceWorker' in navigator) { const registrations = await navigator.serviceWorker.getRegistrations(); await Promise.all(registrations.map(r => r.unregister())); } if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } window.location.reload(); };
+  const [latestVersion, setLatestVersion] = useState(appVersion);
+  React.useEffect(() => { fetch(`/routeplanner/version.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).then(v => { if (v.version && v.version !== appVersion) { setLatestVersion(v.version); setUpdateAvailable(true); } }).catch(() => undefined); }, []);
+  const refreshApp = async () => { localStorage.setItem('routeplanner-version-seen', latestVersion); if ('serviceWorker' in navigator) { const registrations = await navigator.serviceWorker.getRegistrations(); await Promise.all(registrations.map(r => r.unregister())); } if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } window.location.replace(`/routeplanner/?updated=${Date.now()}`); };
   const pharmacy = (id: string) => pharmacies.find(p => p.id === id)!;
   const todayVisits = visits.slice(0, 4);
   const moveDemo = () => { const v = visits.find(x => x.week === 3); if (v) { setVisits(visits.map(x => x.id === v.id ? {...x, week: 2} : x)); setNotice('Apotheke vorgezogen. Gelbe Warnung: Die Kapazität der Zielwoche wurde neu bewertet.'); } };
