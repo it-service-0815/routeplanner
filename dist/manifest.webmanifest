@@ -1,1 +1,1 @@
-{"name":"Engelhard Routeplanner","short_name":"Routeplanner","start_url":"./","display":"standalone","background_color":"#f5f8fa","theme_color":"#003b5c"}
+{"name":"Engelhard Routenplaner","short_name":"Routenplaner","description":"Intelligente Besuchsplanung für den Außendienst","lang":"de","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#f6f7f8","theme_color":"#f6f7f8","categories":["business","productivity","navigation"]}
