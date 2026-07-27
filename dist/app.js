@@ -28,7 +28,7 @@ const flash=(msg,undo=false)=>{
   toast.innerHTML=`<span>${msg}</span>${undo?'<button id="toast-undo">Rückgängig</button>':''}`;
   toast.classList.add('show');
   if(undo)document.querySelector('#toast-undo').onclick=()=>{state.plan=clone(state.undo.plan);state.fixed=clone(state.undo.fixed);state.undo=null;save();render();flash('Änderung rückgängig gemacht')};
-  clearTimeout(flash.timer);flash.timer=setTimeout(()=>toast.classList.remove('show'),undo?5200:2600);
+  clearTimeout(flash.timer);flash.timer=setTimeout(()=>toast.classList.remove('show'),undo?12000:2600);
 };
 const navUrl=p=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.street}, ${p.zip} ${p.city}`)}`;
 const fmtMinutes=n=>n<60?`${n} Min.`:`${Math.floor(n/60)} Std. ${n%60?`${n%60} Min.`:''}`;
