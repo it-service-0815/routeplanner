@@ -68,6 +68,7 @@ export const initialPlan = {
 export const byId = id => pharmacies.find(p=>p.id===id);
 export const minutes = value => { const [h,m]=value.split(':').map(Number); return h*60+m; };
 export const time = value => `${String(Math.floor(value/60)%24).padStart(2,'0')}:${String(Math.round(value%60)).padStart(2,'0')}`;
+export const greetingForHour = hour => hour<11?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
 export const kmBetween = (a,b) => {
   const r=6371, rad=x=>x*Math.PI/180, dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng);
   const q=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
