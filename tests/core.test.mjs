@@ -4,6 +4,7 @@ import {
   pharmacies, initialPlan, defaultSettings, dayMetrics,
   optimize, cycleCoverage, overnightRecommendation,
   visitReason, dayCapacity, workDates, optimizeCycle, rebalanceWeek, planIntegrity
+  ,greetingForHour
 } from '../dist/core.js';
 import {routeByRoad} from '../dist/routing.js';
 
@@ -12,6 +13,13 @@ test('synthetic master data is complete and unique', () => {
   assert.equal(new Set(pharmacies.map(p => p.id)).size, 275);
   assert.deepEqual(new Set(pharmacies.map(p => p.priority)),new Set(['A','B','C','D','E']));
   pharmacies.forEach(p => assert.ok(p.name && p.city && p.duration && p.priority));
+});
+
+test('greeting follows the local time of day', () => {
+  assert.equal(greetingForHour(7),'Guten Morgen');
+  assert.equal(greetingForHour(11),'Guten Tag');
+  assert.equal(greetingForHour(17),'Guten Tag');
+  assert.equal(greetingForHour(18),'Guten Abend');
 });
 
 test('daily plan derives a valid schedule from visit and travel times', () => {
