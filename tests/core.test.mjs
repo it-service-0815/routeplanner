@@ -38,6 +38,22 @@ test('optimizer preserves every pharmacy exactly once', () => {
   assert.deepEqual([...result].sort(), [...input].sort());
 });
 
+test('personal appointment buffer is included between visits', () => {
+  const ids=initialPlan['2026-08-03'];
+  const without=dayMetrics(ids,{...defaultSettings,appointmentBuffer:0});
+  const withBuffer=dayMetrics(ids,{...defaultSettings,appointmentBuffer:10});
+  assert.equal(withBuffer.buffers,30);
+  assert.equal(withBuffer.total-without.total,30);
+});
+
+test('optimization goals remain deterministic and preserve the route', () => {
+  const input=initialPlan['2026-08-03'];
+  for(const optimizationGoal of ['balanced','drive','coverage','priority']){
+    const result=optimize(input,{...defaultSettings,optimizationGoal});
+    assert.deepEqual([...result].sort(),[...input].sort());
+  }
+});
+
 test('coverage and overnight recommendation are calculated', () => {
   const coverage = cycleCoverage(initialPlan);
   assert.equal(coverage.planned, 20);
@@ -51,6 +67,15 @@ test('coverage and overnight recommendation are calculated', () => {
   assert.equal(recommendation.netBenefit,recommendation.benefit-defaultSettings.hotelLimit);
   assert.equal(typeof recommendation.recommended, 'boolean');
   assert.ok(recommendation.reason.length>20);
+});
+
+test('overnight recommendation respects personal minimum savings', () => {
+  const metrics=dayMetrics(initialPlan['2026-08-03'],defaultSettings);
+  const recommendation=overnightRecommendation(metrics,{
+    ...defaultSettings,hotelLimit:0,minOvernightSavingsMinutes:999,minOvernightSavingsKm:999
+  });
+  assert.equal(recommendation.recommended,false);
+  assert.match(recommendation.reason,/Mindestschwelle/);
 });
 
 test('recommendations explain priority, recency and day capacity', () => {
