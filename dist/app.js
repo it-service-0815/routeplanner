@@ -49,7 +49,7 @@ function top(kicker,title,actions=''){return `<header class="page-head"><div><sp
 const button=(label,id,style='secondary',icon='')=>`<button id="${id}" class="button ${style}">${icon}${label}</button>`;
 
 function map(ids,metrics){
-  return `<section class="map-card"><div class="map-head"><div><span class="eyebrow">LIVE-TAGESROUTE</span><h3>Rhein-Main Gebiet</h3></div><span class="traffic"><i></i> Verkehr berücksichtigt</span></div>
+  return `<section class="map-card"><div class="map-head"><div><span class="eyebrow">TAGESROUTE</span><h3>Rhein-Main Gebiet</h3></div><span class="traffic no-live-traffic"><i></i> Straßenroute · kein Live-Verkehr</span></div>
   <div class="map"><div id="live-map" aria-label="Straßenkarte der Tagesroute"></div><div id="map-loading"><span></span> Straßenroute wird berechnet …</div>
   <div class="map-stat"><b id="map-distance">${metrics.distance} km</b><span id="map-duration">${fmtMinutes(metrics.drive)} Fahrzeit · Schätzung</span></div><div class="map-source">© OpenStreetMap · OSRM</div></div></section>`;
 }
