@@ -3,13 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f5f5f7">
+  <meta name="theme-color" content="#f6f7f8">
+  <meta name="description" content="Intelligente Besuchsplanung für den Engelhard Außendienst">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=3">
-  <title>Engelhard Routenplaner</title>
+  <link rel="stylesheet" href="./styles.css?v=4">
+  <title>Routenplaner · Engelhard</title>
 </head>
 <body>
+  <noscript>Der Routenplaner benötigt JavaScript.</noscript>
   <div id="app"></div>
-  <script src="./app.js?v=3"></script>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js?v=4"></script>
 </body>
 </html>
