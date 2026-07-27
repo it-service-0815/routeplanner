@@ -1,10 +1,13 @@
 import {pharmacies,defaultSettings,initialPlan,byId,dayMetrics,optimize,cycleCoverage,overnightRecommendation} from './core.js';
+import {routeByRoad} from './routing.js';
 
 const clone=v=>JSON.parse(JSON.stringify(v));
 const stored=JSON.parse(localStorage.getItem('routeplanner-r3')||'null');
 const state=stored||{view:'today',selectedDate:'2026-08-03',plan:clone(initialPlan),settings:clone(defaultSettings),editing:false,query:'',drawer:null,picker:false,pickerQuery:'',pickerPriority:'all'};
 state.picker=false; state.pickerQuery=state.pickerQuery||''; state.pickerPriority=state.pickerPriority||'all';
+state.baseline=state.baseline||clone(state.plan);
 const app=document.querySelector('#app'), toast=document.querySelector('#toast');
+let liveMap=null, routeRequest=0;
 const icons={
   today:'<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10M9 20v-6h6v6"/></svg>',
   week:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4m8-4v4M3 10h18"/></svg>',
@@ -37,23 +40,21 @@ function top(kicker,title,actions=''){return `<header class="page-head"><div><sp
 const button=(label,id,style='secondary',icon='')=>`<button id="${id}" class="button ${style}">${icon}${label}</button>`;
 
 function map(ids,metrics){
-  const pts=metrics.stops.map((p,i)=>`${12+i*(76/Math.max(1,ids.length-1))},${58+Math.sin(i*2.2)*22}`).join(' ');
   return `<section class="map-card"><div class="map-head"><div><span class="eyebrow">LIVE-TAGESROUTE</span><h3>Rhein-Main Gebiet</h3></div><span class="traffic"><i></i> Verkehr berücksichtigt</span></div>
-  <div class="map"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path class="road" d="M-5 25 C20 45 36 4 105 31M-5 78 C35 59 60 89 105 60M20 -5 C35 30 72 59 83 105"/><polyline class="route-line" points="7,72 ${pts} 7,72"/></svg>
-  <span class="home-pin" style="left:7%;top:72%">${icons.today}</span>${metrics.stops.map((p,i)=>`<button class="map-pin ${i===0?'current':''}" data-open="${p.id}" style="left:${12+i*(76/Math.max(1,ids.length-1))}%;top:${58+Math.sin(i*2.2)*22}%">${i+1}</button>`).join('')}
-  <div class="map-stat"><b>${metrics.distance} km</b><span>${fmtMinutes(metrics.drive)} Fahrzeit</span></div></div></section>`;
+  <div class="map"><div id="live-map" aria-label="Straßenkarte der Tagesroute"></div><div id="map-loading"><span></span> Straßenroute wird berechnet …</div>
+  <div class="map-stat"><b id="map-distance">${metrics.distance} km</b><span id="map-duration">${fmtMinutes(metrics.drive)} Fahrzeit · Schätzung</span></div><div class="map-source">© OpenStreetMap · OSRM</div></div></section>`;
 }
 function today(){
   const ids=state.plan[state.selectedDate]||[], metrics=dayMetrics(ids,state.settings), over=overnightRecommendation(metrics,state.settings);
   return shell(`${top(dateLabel(state.selectedDate).toUpperCase(),'Heute',`${button('Neu planen','optimize','ghost',icons.spark)}${button(state.editing?'Fertig':'Bearbeiten','edit','primary')}`)}
-    <section class="hero"><div><span class="hero-label"><i></i> Dein Plan ist bereit</span><h2>Guten Morgen, Alex.</h2><p>${ids.length} Apotheken liegen heute sinnvoll auf deiner Route.</p><div class="hero-facts"><span><b>${metrics.end}</b> zurück</span><span><b>${metrics.distance} km</b> Strecke</span><span><b>${fmtMinutes(metrics.drive)}</b> Fahrt</span></div></div><div class="hero-score"><span>Planqualität</span><b>Sehr gut</b><small>A-Prioritäten berücksichtigt</small></div></section>
-    <div class="today-grid">${map(ids,metrics)}<section class="route-card"><div class="section-head"><div><span class="eyebrow">DEIN TAG</span><h3>${ids.length} Besuche · Ende ${metrics.end}</h3></div><span class="status-pill">Optimiert</span></div>
+    <section class="hero"><div><span class="hero-label"><i></i> Dein Plan ist bereit</span><h2>Guten Morgen, Alex.</h2><p>${ids.length} Apotheken liegen heute sinnvoll auf deiner Route.</p><div class="hero-facts"><span><b id="metric-end">${metrics.end}</b> zurück</span><span><b id="metric-km">${metrics.distance} km</b> Strecke</span><span><b id="metric-drive">${fmtMinutes(metrics.drive)}</b> Fahrt</span></div></div><div class="hero-score"><span>Planqualität</span><b>Sehr gut</b><small>A-Prioritäten berücksichtigt</small></div></section>
+    <div class="today-grid">${map(ids,metrics)}<section class="route-card"><div class="section-head"><div><span class="eyebrow">DEIN TAG</span><h3 id="day-heading">${ids.length} Besuche · Ende ${metrics.end}</h3></div><span class="status-pill">Optimiert</span></div>
       <div id="route-list">${metrics.stops.map((p,i)=>stop(p,i)).join('')||empty('Noch keine Besuche','Füge Apotheken hinzu oder lasse den Tag optimieren.')}</div>
       ${state.editing?`<button id="add-stop" class="add-button">${icons.plus} Apotheke auswählen</button>`:`<p class="help">Tippe auf „Bearbeiten“, um den Tagesplan anzupassen.</p>`}
-    </section></div>
+    </section></div><section id="route-comparison" class="route-comparison hidden"></section>
     <section class="insight ${over.recommended?'hotel':''}"><span class="insight-icon">${over.recommended?'H':'✓'}</span><div><span class="eyebrow">SMARTE EMPFEHLUNG</span><h3>${over.recommended?'Übernachtung wirtschaftlich sinnvoll':'Heute entspannt nach Hause'}</h3><p>${over.recommended?`Du sparst etwa ${over.savedMinutes} Minuten und ${over.savedKm} km. Wirtschaftlicher Vorteil: ${over.benefit} €.`:`Die Heimfahrt dauert etwa ${metrics.homeDrive} Minuten. Eine Übernachtung erzeugt heute keinen wirtschaftlichen Vorteil.`}</p></div><button class="text-button" id="show-insight">Warum?</button></section>`);
 }
-function stop(p,i){return `<article class="stop" draggable="${state.editing}" data-stop="${p.id}"><span class="stop-index">${state.editing?'⋮⋮':i+1}</span><div class="time-block"><b>${p.start}</b><small>+${p.leg} Min.</small></div><button class="stop-copy" data-open="${p.id}"><b>${p.name}</b><span>${p.street}, ${p.city}</span></button><span class="priority p-${p.priority}">${p.priority}</span><span class="duration">${p.duration} Min.</span><a class="icon-link" href="${navUrl(p)}" target="_blank" aria-label="Navigation zu ${p.name}">${icons.nav}</a>${state.editing?'<button class="remove" aria-label="Besuch entfernen">×</button>':''}</article>`}
+function stop(p,i){return `<article class="stop" draggable="${state.editing}" data-stop="${p.id}"><span class="stop-index">${state.editing?'⋮⋮':i+1}</span><div class="time-block"><b data-road-time="${p.id}">${p.start}</b><small data-road-leg="${p.id}">+${p.leg} Min.</small></div><button class="stop-copy" data-open="${p.id}"><b>${p.name}</b><span>${p.street}, ${p.city}</span></button><span class="priority p-${p.priority}">${p.priority}</span><span class="duration">${p.duration} Min.</span><a class="icon-link" href="${navUrl(p)}" target="_blank" aria-label="Navigation zu ${p.name}">${icons.nav}</a>${state.editing?'<button class="remove" aria-label="Besuch entfernen">×</button>':''}</article>`}
 function week(){
   const total=dates.reduce((s,d)=>s+dayMetrics(state.plan[d],state.settings).total,0);
   return shell(`${top('KW 32 · 03.–07. AUGUST','Deine Woche',button('Woche optimieren','optimize-week','primary',icons.spark))}
@@ -103,9 +104,67 @@ function picker(){
     }).join('')||empty('Keine Apotheke gefunden','Passe Suche oder Filter an.')}</div>
     <footer><span>${matches.length} Apotheken</span><button id="picker-done" class="button primary">Fertig</button></footer></section></div>`;
 }
+async function loadRoadRoute(){
+  if(state.view!=='today'||!document.querySelector('#live-map'))return;
+  const request=++routeRequest, ids=state.plan[state.selectedDate]||[];
+  try{
+    const road=await routeByRoad(ids,state.settings);
+    if(request!==routeRequest||state.view!=='today')return;
+    const visit=ids.reduce((sum,id)=>sum+Number(byId(id).duration),0);
+    const total=road.drive+visit+(ids.length?state.settings.breakMinutes:0);
+    const startMinutes=state.settings.workStart.split(':').reduce((h,m)=>Number(h)*60+Number(m));
+    const endMinutes=startMinutes+total;
+    const end=`${String(Math.floor(endMinutes/60)).padStart(2,'0')}:${String(endMinutes%60).padStart(2,'0')}`;
+    document.querySelector('#metric-end').textContent=end;
+    document.querySelector('#metric-km').textContent=`${road.distance} km`;
+    document.querySelector('#metric-drive').textContent=fmtMinutes(road.drive);
+    document.querySelector('#map-distance').textContent=`${road.distance} km`;
+    document.querySelector('#map-duration').textContent=`${fmtMinutes(road.drive)} Fahrzeit · Straße`;
+    document.querySelector('#day-heading').textContent=`${ids.length} Besuche · Ende ${end}`;
+    document.querySelector('#map-loading')?.classList.add('done');
+    let clock=startMinutes;
+    ids.forEach((id,index)=>{
+      const leg=road.legs[index]; clock+=leg?.duration||0;
+      const label=`${String(Math.floor(clock/60)).padStart(2,'0')}:${String(clock%60).padStart(2,'0')}`;
+      const timeNode=document.querySelector(`[data-road-time="${id}"]`), legNode=document.querySelector(`[data-road-leg="${id}"]`);
+      if(timeNode)timeNode.textContent=label;
+      if(legNode)legNode.textContent=`+${leg?.duration||0} Min.`;
+      clock+=Number(byId(id).duration);
+    });
+    if(window.L){
+      liveMap=window.L.map('live-map',{zoomControl:false,attributionControl:true});
+      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(liveMap);
+      window.L.control.zoom({position:'topright'}).addTo(liveMap);
+      window.L.polyline(road.geometry,{color:'#006f78',weight:5,opacity:.88,lineCap:'round',lineJoin:'round'}).addTo(liveMap);
+      const homeIcon=window.L.divIcon({className:'route-marker-wrap',html:'<span class="road-marker home-road">⌂</span>',iconSize:[34,34],iconAnchor:[17,17]});
+      window.L.marker([state.settings.homeLat,state.settings.homeLng],{icon:homeIcon}).addTo(liveMap).bindTooltip('Start und Ziel');
+      ids.forEach((id,index)=>{
+        const p=byId(id), icon=window.L.divIcon({className:'route-marker-wrap',html:`<span class="road-marker ${index===0?'next':''}">${index+1}</span>`,iconSize:[34,34],iconAnchor:[17,17]});
+        window.L.marker([p.lat,p.lng],{icon}).addTo(liveMap).bindTooltip(`<b>${p.name}</b><br>${p.city}`,{direction:'top'});
+      });
+      liveMap.fitBounds(window.L.latLngBounds(road.geometry),{padding:[28,28]});
+    }
+    const baseline=state.baseline[state.selectedDate]||ids;
+    if(JSON.stringify(baseline)!==JSON.stringify(ids)){
+      const recommended=await routeByRoad(baseline,state.settings);
+      if(request!==routeRequest)return;
+      const deltaKm=road.distance-recommended.distance, deltaMin=road.drive-recommended.drive;
+      const comparison=document.querySelector('#route-comparison');
+      comparison.classList.remove('hidden');
+      comparison.innerHTML=`<span class="comparison-icon">${deltaMin<=0?'✓':'↗'}</span><div><span class="eyebrow">AUSWIRKUNG DEINER ÄNDERUNG</span><h3>${deltaMin<=0?'Dein Plan bleibt effizient':`${deltaMin} Minuten zusätzliche Fahrzeit`}</h3><p>${deltaKm>=0?'+':''}${deltaKm} km · ${deltaMin>=0?'+':''}${deltaMin} Min. gegenüber der Empfehlung</p></div><button id="restore-route" class="text-button">Empfehlung wiederherstellen</button>`;
+      document.querySelector('#restore-route').onclick=()=>{state.plan[state.selectedDate]=clone(baseline);save();render();flash('Empfohlene Route wiederhergestellt')};
+    }
+  }catch(error){
+    if(request!==routeRequest)return;
+    const loading=document.querySelector('#map-loading');
+    if(loading){loading.classList.add('error');loading.innerHTML='Straßenroute derzeit nicht verfügbar · Schätzung wird angezeigt'}
+  }
+}
 function render(){
+  if(liveMap){try{liveMap.remove()}catch{} liveMap=null}
   app.innerHTML=state.view==='today'?today():state.view==='week'?week():state.view==='cycle'?cycle():state.view==='stores'?stores():settings();
   bind();
+  if(state.view==='today')loadRoadRoute();
 }
 function bind(){
   document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{state.view=el.dataset.view;state.editing=false;save();render()});
@@ -113,7 +172,7 @@ function bind(){
   document.querySelectorAll('[data-close]').forEach(el=>el.onclick=e=>{if(e.target===el){state.drawer=null;render()}});
   if(state.view==='today'){
     document.querySelector('#edit').onclick=()=>{state.editing=!state.editing;render()};
-    document.querySelector('#optimize').onclick=()=>{state.plan[state.selectedDate]=optimize(state.plan[state.selectedDate],state.settings);save();render();flash('Route neu optimiert')};
+    document.querySelector('#optimize').onclick=()=>{state.plan[state.selectedDate]=optimize(state.plan[state.selectedDate],state.settings);state.baseline[state.selectedDate]=clone(state.plan[state.selectedDate]);save();render();flash('Route neu optimiert')};
     document.querySelector('#show-insight').onclick=()=>flash('Berechnet aus Fahrzeit, Kilometerkosten, Stundenwert und Hotelbudget.');
     if(state.editing){
       document.querySelectorAll('[data-stop]').forEach(el=>{
