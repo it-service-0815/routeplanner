@@ -1,0 +1,10 @@
+{
+  "name": "engelhard-routenplaner",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check dist/app.js && node --check dist/core.js && npm test"
+  }
+}
