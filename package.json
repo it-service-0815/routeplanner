@@ -1,0 +1,9 @@
+{
+  "name": "engelhard-routeplanner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {"dev":"vite","build":"tsc -b && vite build","test":"vitest run","test:e2e":"playwright test","lint":"eslint ."},
+  "dependencies": {"@vitejs/plugin-react":"latest","vite":"latest","typescript":"latest","react":"latest","react-dom":"latest","lucide-react":"latest"},
+  "devDependencies": {"vitest":"latest","@playwright/test":"latest","jsdom":"latest","eslint":"latest","prettier":"latest","@types/react":"latest","@types/react-dom":"latest"}
+}
