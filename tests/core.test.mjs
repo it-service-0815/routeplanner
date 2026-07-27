@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   pharmacies, initialPlan, defaultSettings, dayMetrics,
   optimize, cycleCoverage, overnightRecommendation,
-  workDates, optimizeCycle, rebalanceWeek, planIntegrity
+  visitReason, dayCapacity, workDates, optimizeCycle, rebalanceWeek, planIntegrity
 } from '../dist/core.js';
 import {routeByRoad} from '../dist/routing.js';
 
@@ -39,7 +39,21 @@ test('coverage and overnight recommendation are calculated', () => {
     defaultSettings
   );
   assert.equal(typeof recommendation.benefit, 'number');
+  assert.equal(recommendation.benefit,recommendation.mileageValue+recommendation.timeValue);
+  assert.equal(recommendation.netBenefit,recommendation.benefit-defaultSettings.hotelLimit);
   assert.equal(typeof recommendation.recommended, 'boolean');
+  assert.ok(recommendation.reason.length>20);
+});
+
+test('recommendations explain priority, recency and day capacity', () => {
+  const ids=initialPlan['2026-08-03'], pharmacy=pharmacies.find(p=>p.id===ids[0]);
+  const reason=visitReason(pharmacy,ids,defaultSettings);
+  const capacity=dayCapacity(ids,defaultSettings);
+  assert.match(reason,/Umsatzpriorität/);
+  assert.match(reason,/letzten Besuch/);
+  assert.ok(capacity.available>0);
+  assert.equal(capacity.remaining,capacity.available-capacity.total);
+  assert.ok(capacity.utilization>0);
 });
 
 test('sales cycle plans every pharmacy exactly once across 12 weeks', () => {
@@ -48,7 +62,8 @@ test('sales cycle plans every pharmacy exactly once across 12 weeks', () => {
   const plan=optimizeCycle(defaultSettings);
   const integrity=planIntegrity(plan);
   assert.deepEqual(integrity,{visits:275,unique:275,duplicates:0,unknown:0,missing:0});
-  assert.ok(dates.every(date=>plan[date].length>=4&&plan[date].length<=5));
+  assert.ok(dates.every(date=>dayCapacity(plan[date],defaultSettings).overtime===0));
+  assert.ok(Math.max(...dates.map(date=>dayCapacity(plan[date],defaultSettings).utilization))<100);
 });
 
 test('week rebalancing preserves fixed appointments', () => {
