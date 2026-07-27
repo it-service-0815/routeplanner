@@ -1,4 +1,4 @@
-export const pharmacies = [
+const basePharmacies = [
   ['a01','Linden-Apotheke','Bad Vilbel','Frankfurter Straße 41','61118','A',45,50.179,8.738,'2026-05-18'],
   ['a02','Apotheke am Markt','Frankfurt','Marktstraße 12','60311','A',30,50.111,8.682,'2026-05-04'],
   ['a03','Mainbogen-Apotheke','Hanau','Mainbogen 8','63450','B',30,50.126,8.928,'2026-04-27'],
@@ -25,6 +25,30 @@ export const pharmacies = [
   ['a24','Burg-Apotheke','Königstein','Burgweg 6','61462','C',30,50.180,8.466,'2026-06-19'],
   ['a25','Rhein-Apotheke','Rüsselsheim','Rheinstraße 24','65428','B',30,49.995,8.413,'2026-06-05']
 ].map(([id,name,city,street,zip,priority,duration,lat,lng,lastVisit])=>({id,name,city,street,zip,priority,duration,lat,lng,lastVisit}));
+
+const regions=[
+  ['Frankfurt','60311',50.111,8.682],['Hanau','63450',50.126,8.928],['Darmstadt','64283',49.873,8.651],
+  ['Wiesbaden','65183',50.083,8.240],['Offenbach','63065',50.096,8.776],['Bad Vilbel','61118',50.179,8.738],
+  ['Gelnhausen','63571',50.202,9.187],['Aschaffenburg','63739',49.977,9.152],['Mainz','55116',50.000,8.271],
+  ['Friedberg','61169',50.338,8.755],['Langen','63225',49.992,8.668],['Rüsselsheim','65428',49.995,8.413],
+  ['Oberursel','61440',50.203,8.577],['Seligenstadt','63500',50.044,8.975],['Bad Nauheim','61231',50.365,8.740]
+];
+const names=['Adler','Aesculap','Alte Stadt','Bahnhof','Brunnen','Central','Engel','Garten','Goethe','Hirsch','Kronen','Löwen','Marien','Mozart','Park','Rathaus','Rosen','Schwanen','Stadt','Viktoria'];
+const generated=Array.from({length:250},(_,index)=>{
+  const region=regions[index%regions.length], ring=Math.floor(index/regions.length)+1;
+  const angle=(index*137.508)*Math.PI/180, radius=.006+(ring%9)*.0028;
+  const priority=['A','A','B','B','B','C','C','D','D','E'][index%10];
+  const month=String(1+(index%6)).padStart(2,'0'), day=String(2+(index%25)).padStart(2,'0');
+  return {
+    id:`rx-${String(index+1).padStart(3,'0')}`,
+    name:`${names[index%names.length]}-Apotheke ${ring}`,
+    city:region[0],zip:region[1],street:`${['Hauptstraße','Bahnhofstraße','Gartenweg','Marktplatz','Rathausgasse'][index%5]} ${3+(index*7)%96}`,
+    priority,duration:priority==='A'?45:index%8===0?45:30,
+    lat:region[2]+Math.cos(angle)*radius,lng:region[3]+Math.sin(angle)*radius,
+    lastVisit:`2026-${month}-${day}`
+  };
+});
+export const pharmacies=[...basePharmacies,...generated];
 
 export const defaultSettings = {
   home:'Niederdorfelden, 61138', homeLat:50.195, homeLng:8.800,
@@ -76,11 +100,70 @@ export function optimize(ids, settings=defaultSettings){
 }
 export function cycleCoverage(plan){
   const planned=new Set(Object.values(plan).flat());
-  const counts={A:0,B:0,C:0}; pharmacies.filter(p=>planned.has(p.id)).forEach(p=>counts[p.priority]++);
+  const counts={A:0,B:0,C:0,D:0,E:0}; pharmacies.filter(p=>planned.has(p.id)).forEach(p=>counts[p.priority]++);
   return {planned:planned.size,total:pharmacies.length,percent:Math.round(planned.size/pharmacies.length*100),counts};
 }
 export function overnightRecommendation(metrics, settings=defaultSettings){
   const savedKm=Math.max(0,Math.round(metrics.distance*.42)), savedMinutes=Math.max(0,metrics.homeDrive-12);
   const benefit=Math.round(savedKm*settings.kmCost+savedMinutes/60*settings.hourlyValue);
   return {savedKm,savedMinutes,benefit,recommended:settings.overnight&&benefit>settings.hotelLimit};
+}
+
+export function workDates(settings=defaultSettings){
+  const dates=[], cursor=new Date(`${settings.cycleStart}T12:00:00`), end=new Date(`${settings.cycleEnd}T12:00:00`);
+  while(cursor<=end){
+    if(settings.workdays.includes(cursor.getDay()))dates.push(cursor.toISOString().slice(0,10));
+    cursor.setDate(cursor.getDate()+1);
+  }
+  return dates;
+}
+
+export function optimizeCycle(settings=defaultSettings,fixed={}){
+  const dates=workDates(settings), plan=Object.fromEntries(dates.map(date=>[date,[]]));
+  const assigned=new Set();
+  Object.entries(fixed).forEach(([id,date])=>{if(plan[date]&&byId(id)){plan[date].push(id);assigned.add(id)}});
+  const priority={A:0,B:1,C:2,D:3,E:4};
+  const queue=pharmacies.filter(p=>!assigned.has(p.id)).sort((a,b)=>priority[a.priority]-priority[b.priority]||a.lastVisit.localeCompare(b.lastVisit));
+  const target=Math.max(1,Math.ceil(pharmacies.length/dates.length));
+  queue.forEach(p=>{
+    const candidates=dates.filter(date=>plan[date].length<target+1);
+    const date=[...(candidates.length?candidates:dates)].sort((a,b)=>{
+      const lastA=byId(plan[a][plan[a].length-1]), lastB=byId(plan[b][plan[b].length-1]);
+      const distA=lastA?kmBetween(lastA,p):kmBetween({lat:settings.homeLat,lng:settings.homeLng},p);
+      const distB=lastB?kmBetween(lastB,p):kmBetween({lat:settings.homeLat,lng:settings.homeLng},p);
+      return plan[a].length-plan[b].length||distA-distB;
+    })[0];
+    plan[date].push(p.id);
+  });
+  dates.forEach(date=>plan[date]=optimize(plan[date],settings));
+  return plan;
+}
+
+export function rebalanceWeek(plan,dates,fixed={},settings=defaultSettings){
+  const next=JSON.parse(JSON.stringify(plan)), ids=[...new Set(dates.flatMap(date=>next[date]||[]))];
+  dates.forEach(date=>next[date]=[]);
+  ids.filter(id=>fixed[id]&&dates.includes(fixed[id])).forEach(id=>next[fixed[id]].push(id));
+  const flexible=ids.filter(id=>!fixed[id]||!dates.includes(fixed[id]));
+  flexible.sort((a,b)=>({A:0,B:1,C:2,D:3,E:4}[byId(a).priority]-{A:0,B:1,C:2,D:3,E:4}[byId(b).priority]));
+  flexible.forEach(id=>{
+    const p=byId(id);
+    const date=[...dates].sort((a,b)=>{
+      const aLast=byId(next[a].at(-1)),bLast=byId(next[b].at(-1));
+      const aDist=aLast?kmBetween(aLast,p):0,bDist=bLast?kmBetween(bLast,p):0;
+      return next[a].length-next[b].length||aDist-bDist;
+    })[0];
+    next[date].push(id);
+  });
+  dates.forEach(date=>next[date]=optimize(next[date],settings));
+  return next;
+}
+
+export function planIntegrity(plan){
+  const ids=Object.values(plan).flat(), unique=new Set(ids), known=new Set(pharmacies.map(p=>p.id));
+  return {
+    visits:ids.length,unique:unique.size,
+    duplicates:ids.length-unique.size,
+    unknown:ids.filter(id=>!known.has(id)).length,
+    missing:pharmacies.length-[...unique].filter(id=>known.has(id)).length
+  };
 }
