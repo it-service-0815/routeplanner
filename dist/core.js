@@ -53,7 +53,11 @@ export const pharmacies=[...basePharmacies,...generated];
 export const defaultSettings = {
   home:'Niederdorfelden, 61138', homeLat:50.195, homeLng:8.800,
   workStart:'08:30', workEnd:'17:00', breakMinutes:30, defaultDuration:30,
+  appointmentBuffer:10, maxDailyDrive:180, latestReturn:'17:00',
+  optimizationGoal:'balanced', autoOptimize:true, protectFixed:true,
+  clusterDurations:{A:45,B:30,C:30,D:30,E:30},
   kmCost:.42, hourlyValue:42, hotelLimit:120, overnight:true,
+  minOvernightSavingsMinutes:60, minOvernightSavingsKm:80,
   cycleStart:'2026-08-03', cycleEnd:'2026-10-25', workdays:[1,2,3,4,5]
 };
 
@@ -76,23 +80,30 @@ export const kmBetween = (a,b) => {
 };
 export function dayMetrics(ids, settings=defaultSettings){
   let current={lat:settings.homeLat,lng:settings.homeLng}, clock=minutes(settings.workStart), distance=0, drive=0;
-  const stops=ids.map(id=>{
+  const appointmentBuffer=Number(settings.appointmentBuffer||0);
+  const stops=ids.map((id,index)=>{
     const p=byId(id), km=kmBetween(current,p), leg=Math.max(8,Math.round(km/.72));
     distance+=km; drive+=leg; clock+=leg;
     const start=time(clock); clock+=Number(p.duration); current=p;
+    if(index<ids.length-1)clock+=appointmentBuffer;
     return {...p,start,leg,km:Math.round(km)};
   });
   const homeKm=stops.length?kmBetween(current,{lat:settings.homeLat,lng:settings.homeLng}):0;
   const homeDrive=Math.max(0,Math.round(homeKm/.72));
   distance+=homeKm; drive+=homeDrive; clock+=homeDrive+(stops.length?settings.breakMinutes:0);
   const visit=stops.reduce((s,p)=>s+Number(p.duration),0);
-  return {stops,distance:Math.round(distance),drive,visit,total:drive+visit+(stops.length?settings.breakMinutes:0),end:time(clock),overtime:Math.max(0,clock-minutes(settings.workEnd)),homeDrive};
+  const buffers=Math.max(0,stops.length-1)*appointmentBuffer;
+  const latestReturn=settings.latestReturn||settings.workEnd;
+  const dayLimit=Math.min(minutes(settings.workEnd),minutes(latestReturn));
+  return {stops,distance:Math.round(distance),drive,visit,buffers,total:drive+visit+buffers+(stops.length?settings.breakMinutes:0),end:time(clock),overtime:Math.max(0,clock-dayLimit),homeDrive};
 }
 export function optimize(ids, settings=defaultSettings){
   const remaining=ids.map(byId), result=[]; let current={lat:settings.homeLat,lng:settings.homeLng};
   while(remaining.length){
     remaining.sort((a,b)=>{
-      const priority={A:0,B:12,C:24,D:36,E:48};
+      const goal=settings.optimizationGoal||'balanced';
+      const step=goal==='priority'?24:goal==='drive'?0:goal==='coverage'?6:12;
+      const priority={A:0,B:step,C:step*2,D:step*3,E:step*4};
       return kmBetween(current,a)+priority[a.priority]-(kmBetween(current,b)+priority[b.priority]);
     });
     const next=remaining.shift(); result.push(next.id); current=next;
@@ -110,11 +121,14 @@ export function overnightRecommendation(metrics, settings=defaultSettings){
   const timeValue=Math.round(savedMinutes/60*settings.hourlyValue);
   const benefit=mileageValue+timeValue;
   const netBenefit=benefit-settings.hotelLimit;
+  const thresholdReached=savedMinutes>=Number(settings.minOvernightSavingsMinutes||0)||savedKm>=Number(settings.minOvernightSavingsKm||0);
   return {
     savedKm,savedMinutes,mileageValue,timeValue,benefit,netBenefit,
-    recommended:settings.overnight&&netBenefit>0,
+    recommended:settings.overnight&&netBenefit>0&&thresholdReached,
     reason:!settings.overnight
       ?'Übernachtungen sind in deinen Einstellungen deaktiviert.'
+      :!thresholdReached
+        ?`Die Mindestschwelle von ${settings.minOvernightSavingsMinutes||0} Minuten oder ${settings.minOvernightSavingsKm||0} Kilometern wird nicht erreicht.`
       :netBenefit>0
         ?`${benefit} € Zeit- und Fahrtkostenvorteil übersteigen dein Hotelbudget um ${netBenefit} €.`
         :`${benefit} € Zeit- und Fahrtkostenvorteil liegen ${Math.abs(netBenefit)} € unter deinem Hotelbudget.`
@@ -133,7 +147,7 @@ export function visitReason(pharmacy, ids=[], settings=defaultSettings){
 export function dayCapacity(ids,settings=defaultSettings){
   const metrics=dayMetrics(ids,settings);
   const available=Math.max(1,minutes(settings.workEnd)-minutes(settings.workStart));
-  return {...metrics,available,utilization:Math.round(metrics.total/available*100),remaining:available-metrics.total};
+  return {...metrics,available,utilization:Math.round(metrics.total/available*100),remaining:available-metrics.total,driveLimitExceeded:metrics.drive>Number(settings.maxDailyDrive||Infinity)};
 }
 
 export function workDates(settings=defaultSettings){
@@ -192,8 +206,9 @@ export function swapVisits(plan,first,second,settings=defaultSettings){
   const firstDate=Object.keys(next).find(date=>(next[date]||[]).includes(first));
   const secondDate=Object.keys(next).find(date=>(next[date]||[]).includes(second));
   if(!firstDate||!secondDate||firstDate===secondDate)return next;
-  next[firstDate]=optimize(next[firstDate].map(id=>id===first?second:id),settings);
-  next[secondDate]=optimize(next[secondDate].map(id=>id===second?first:id),settings);
+  const arrange=ids=>settings.autoOptimize===false?ids:optimize(ids,settings);
+  next[firstDate]=arrange(next[firstDate].map(id=>id===first?second:id));
+  next[secondDate]=arrange(next[secondDate].map(id=>id===second?first:id));
   return next;
 }
 
