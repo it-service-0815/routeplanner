@@ -1,12 +1,10 @@
 {
-  "version": "5.5.0",
+  "version": "5.5.1",
   "released": "2026-07-27",
-  "title": "Deine persönliche Planungszentrale",
+  "title": "Einstellungen sauber ausgerichtet",
   "changes": [
-    "Die Mehr-Seite ist auf Desktop als übersichtliche persönliche Planungszentrale neu gestaltet.",
-    "Optimierungsziel, Terminpuffer und maximale Tagesfahrzeit lassen sich individuell festlegen.",
-    "Für die Cluster A bis E können eigene Standard-Besuchszeiten gepflegt werden.",
-    "Übernachtungen berücksichtigen jetzt konfigurierbare Mindestwerte für Zeit- oder Kilometerersparnis.",
-    "Updates, Versionsstand und Datenstatus sind in einem eigenen Bereich gebündelt."
+    "Alle Optionen der Mehr-Seite bleiben jetzt vollständig innerhalb ihrer weißen Kachel.",
+    "Zweispaltige Einstellungsgruppen richten Beschriftungen und Eingabefelder sauber untereinander aus.",
+    "Das korrigierte Raster verhindert seitliches Abschneiden auf kleineren Desktopfenstern."
   ]
 }
