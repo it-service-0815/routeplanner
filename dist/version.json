@@ -1,10 +1,10 @@
 {
-  "version": "5.6.0",
+  "version": "5.6.1",
   "released": "2026-07-27",
-  "title": "Reaktive Kapazitätsplanung",
+  "title": "Engelhard auf deinem Homescreen",
   "changes": [
-    "Abhängige Kennzahlen aktualisieren sich unmittelbar nach jeder abgeschlossenen Eingabe.",
-    "Mehrere Urlaubszeiträume können in der Verkaufsrunde gepflegt und entfernt werden.",
-    "Urlaubstage werden automatisch aus den verfügbaren Arbeitstagen und der Planungskapazität herausgerechnet."
+    "Die App heißt auf allen Plattformen konsistent Engelhard Routenplaner.",
+    "Ein neues Engelhard-Flügelicon erscheint bei Neuinstallation auf dem Homescreen.",
+    "iOS, Android, PWA und Browser-Lesezeichen erhalten passende Icongrößen."
   ]
 }

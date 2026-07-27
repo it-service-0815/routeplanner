@@ -140,7 +140,7 @@ function settings(){
       <div class="field-pair">${field('Kilometerkosten','kmCost','number',s.kmCost,'€',.01)}${field('Mindestens Zeit sparen','minOvernightSavingsMinutes','number',s.minOvernightSavingsMinutes,'Min.')}</div>
       ${field('Oder mindestens Strecke sparen','minOvernightSavingsKm','number',s.minOvernightSavingsKm,'km')}`,
     app:`${settingHead(icons.settings,'App & Daten','Versionsstand, Aktualisierung und sichere Präsentation.')}
-      <div class="app-status"><span class="app-status-icon">✓</span><div><b>Routenplaner ist aktuell</b><small>Version 5.6.0 · 275 synthetische Apotheken</small></div><button id="update-now" class="button secondary">Jetzt aktualisieren</button></div>
+      <div class="app-status"><span class="app-status-icon">✓</span><div><b>Routenplaner ist aktuell</b><small>Version 5.6.1 · 275 synthetische Apotheken</small></div><button id="update-now" class="button secondary">Jetzt aktualisieren</button></div>
       <div class="data-facts"><span><b>${pharmacies.length}</b><small>Apotheken</small></span><span><b>OSM / OSRM</b><small>Routing · kein Live-Verkehr</small></span><span><b>Lokal</b><small>Planung gespeichert</small></span></div>
       <div class="presentation-card"><div><h3>Präsentationsmodus</h3><p>Startet eine ruhige Demoansicht mit klarer Kennzeichnung der synthetischen Daten.</p></div><button id="presentation-start" class="button primary">${icons.spark} Präsentation starten</button></div>`
   };
