@@ -1,11 +1,12 @@
 {
-  "version": "5.4.2",
+  "version": "5.4.3",
   "released": "2026-07-27",
   "title": "Engelhard Product Experience",
   "changes": [
     "Das neue Engelhard-Design integriert die geflügelte Bildmarke und das charakteristische Dunkelblau.",
+    "Die Desktop-Woche zeigt große, gut lesbare Tageskarten mit vollständigen Apothekennamen.",
     "Apotheken lassen sich in der Woche verschieben oder mit empfohlenen Besuchen tauschen.",
     "Manuelle Planänderungen können jetzt zuverlässig direkt rückgängig gemacht werden.",
-    "Ein gekennzeichneter Präsentationsmodus und neue Lade- und Fehlerzustände machen den POC vorführbereit."
+    "Die Karte kennzeichnet transparent, dass OSM/OSRM aktuell keine Live-Verkehrsdaten liefert."
   ]
 }
