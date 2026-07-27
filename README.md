@@ -20,3 +20,5 @@ npm run check
 ```
 
 GitHub Pages veröffentlicht ausschließlich den verifizierten Inhalt aus `dist`.
+
+Release: R3 Product Foundation · 27.07.2026
