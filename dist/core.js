@@ -58,7 +58,7 @@ export const defaultSettings = {
   clusterDurations:{A:45,B:30,C:30,D:30,E:30},
   kmCost:.42, hourlyValue:42, hotelLimit:120, overnight:true,
   minOvernightSavingsMinutes:60, minOvernightSavingsKm:80,
-  cycleStart:'2026-08-03', cycleEnd:'2026-10-25', workdays:[1,2,3,4,5]
+  cycleStart:'2026-08-03', cycleEnd:'2026-10-25', workdays:[1,2,3,4,5], vacations:[]
 };
 
 export const initialPlan = {
@@ -153,7 +153,9 @@ export function dayCapacity(ids,settings=defaultSettings){
 export function workDates(settings=defaultSettings){
   const dates=[], cursor=new Date(`${settings.cycleStart}T12:00:00`), end=new Date(`${settings.cycleEnd}T12:00:00`);
   while(cursor<=end){
-    if(settings.workdays.includes(cursor.getDay()))dates.push(cursor.toISOString().slice(0,10));
+    const date=cursor.toISOString().slice(0,10);
+    const vacation=(settings.vacations||[]).some(period=>period.start&&period.end&&date>=period.start&&date<=period.end);
+    if(settings.workdays.includes(cursor.getDay())&&!vacation)dates.push(date);
     cursor.setDate(cursor.getDate()+1);
   }
   return dates;
