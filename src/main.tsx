@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CalendarDays, ChevronRight, Clock3, Home, Map, Menu, Navigation, Settings, Store, Wifi, X } from 'lucide-react';
 import { branding } from './config/branding';
+import { appVersion } from './config/version';
 import { pharmacies, settings as initialSettings, visits as initialVisits } from './data/demo';
 import type { Pharmacy, PlannedVisit } from './types';
 import './styles.css';
@@ -17,10 +18,13 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [traffic, setTraffic] = useState(true);
   const [selectedPharmacy, setSelectedPharmacy] = useState<Pharmacy | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  React.useEffect(() => { fetch(`/routeplanner/version.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).then(v => { if (v.version && v.version !== appVersion && localStorage.getItem('routeplanner-version-seen') !== v.version) setUpdateAvailable(true); }).catch(() => undefined); }, []);
+  const refreshApp = async () => { localStorage.setItem('routeplanner-version-seen', appVersion); if ('serviceWorker' in navigator) { const registrations = await navigator.serviceWorker.getRegistrations(); await Promise.all(registrations.map(r => r.unregister())); } if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } window.location.reload(); };
   const pharmacy = (id: string) => pharmacies.find(p => p.id === id)!;
   const todayVisits = visits.slice(0, 4);
   const moveDemo = () => { const v = visits.find(x => x.week === 3); if (v) { setVisits(visits.map(x => x.id === v.id ? {...x, week: 2} : x)); setNotice('Apotheke vorgezogen. Gelbe Warnung: Die Kapazität der Zielwoche wurde neu bewertet.'); } };
-  return <div className="app"><aside><img src={branding.logo} alt="Engelhard"/><nav>{navItems.map(([label, Icon]) => <button key={label} className={page === label ? 'active' : ''} onClick={() => setPage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="side-foot"><Wifi size={16}/> Offline-Demo</div></aside><main><header><div className="mobile-brand"><Menu size={22}/><span>{branding.appName}</span></div><div><span className="eyebrow">Montag, 3. August 2026</span><h1>{page}</h1></div><div className="avatar">AJ</div></header>{page === 'Heute' && <Today visits={todayVisits} pharmacy={pharmacy} traffic={traffic} setTraffic={setTraffic} onOpen={setSelectedPharmacy}/>} {page === 'Woche' && <Week week={week} setWeek={setWeek} visits={visits.filter(v => v.week === week)} pharmacy={pharmacy} onMove={moveDemo} notice={notice}/>} {page === 'Runde' && <Cycle/>} {page === 'Apotheken' && <Pharmacies onOpen={setSelectedPharmacy}/>} {page === 'Mehr' && <SettingsPage/>}</main>{selectedPharmacy && <PharmacyModal pharmacy={selectedPharmacy} onClose={() => setSelectedPharmacy(null)}/>}</div>;
+  return <div className="app">{updateAvailable && <div className="update-banner"><b>Neue Version verfügbar</b><span>Eine aktualisierte Version des Routeplanners ist bereit.</span><button onClick={refreshApp}>Jetzt aktualisieren</button></div>}<aside><img src={branding.logo} alt="Engelhard"/><nav>{navItems.map(([label, Icon]) => <button key={label} className={page === label ? 'active' : ''} onClick={() => setPage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="side-foot"><Wifi size={16}/> Offline-Demo · v{appVersion}</div></aside><main><header><div className="mobile-brand"><Menu size={22}/><span>{branding.appName}</span></div><div><span className="eyebrow">Montag, 3. August 2026</span><h1>{page}</h1></div><div className="avatar">AJ</div></header>{page === 'Heute' && <Today visits={todayVisits} pharmacy={pharmacy} traffic={traffic} setTraffic={setTraffic} onOpen={setSelectedPharmacy}/>} {page === 'Woche' && <Week week={week} setWeek={setWeek} visits={visits.filter(v => v.week === week)} pharmacy={pharmacy} onMove={moveDemo} notice={notice}/>} {page === 'Runde' && <Cycle/>} {page === 'Apotheken' && <Pharmacies onOpen={setSelectedPharmacy}/>} {page === 'Mehr' && <SettingsPage/>}</main>{selectedPharmacy && <PharmacyModal pharmacy={selectedPharmacy} onClose={() => setSelectedPharmacy(null)}/>}</div>;
 }
 
 const Card = ({children, className = ''}: {children: React.ReactNode; className?: string}) => <section className={`card ${className}`}>{children}</section>;
