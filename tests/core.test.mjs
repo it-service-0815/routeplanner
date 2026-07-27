@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   pharmacies, initialPlan, defaultSettings, dayMetrics,
   optimize, cycleCoverage, overnightRecommendation,
-  visitReason, dayCapacity, workDates, optimizeCycle, rebalanceWeek, planIntegrity
+  visitReason, dayCapacity, workDates, optimizeCycle, rebalanceWeek, swapVisits, planIntegrity
   ,greetingForHour
 } from '../dist/core.js';
 import {routeByRoad} from '../dist/routing.js';
@@ -80,6 +80,15 @@ test('week rebalancing preserves fixed appointments', () => {
   const next=rebalanceWeek(plan,dates,fixed,defaultSettings);
   assert.ok(next[dates[2]].includes(id));
   assert.equal(planIntegrity(next).duplicates,0);
+});
+
+test('weekly swap exchanges two visits without losing cycle integrity', () => {
+  const plan=optimizeCycle(defaultSettings), dates=workDates(defaultSettings);
+  const first=plan[dates[0]][0], second=plan[dates[1]][0];
+  const next=swapVisits(plan,first,second,defaultSettings);
+  assert.ok(next[dates[0]].includes(second));
+  assert.ok(next[dates[1]].includes(first));
+  assert.deepEqual(planIntegrity(next),{visits:275,unique:275,duplicates:0,unknown:0,missing:0});
 });
 
 test('road routing normalizes OSRM distance, duration, legs and geometry', async () => {
