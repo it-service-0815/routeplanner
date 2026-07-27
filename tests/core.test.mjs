@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pharmacies, initialPlan, defaultSettings, dayMetrics,
-  optimize, cycleCoverage, overnightRecommendation
+  optimize, cycleCoverage, overnightRecommendation,
+  workDates, optimizeCycle, rebalanceWeek, planIntegrity
 } from '../dist/core.js';
 import {routeByRoad} from '../dist/routing.js';
 
 test('synthetic master data is complete and unique', () => {
-  assert.equal(pharmacies.length, 25);
-  assert.equal(new Set(pharmacies.map(p => p.id)).size, 25);
+  assert.equal(pharmacies.length, 275);
+  assert.equal(new Set(pharmacies.map(p => p.id)).size, 275);
+  assert.deepEqual(new Set(pharmacies.map(p => p.priority)),new Set(['A','B','C','D','E']));
   pharmacies.forEach(p => assert.ok(p.name && p.city && p.duration && p.priority));
 });
 
@@ -31,13 +33,30 @@ test('optimizer preserves every pharmacy exactly once', () => {
 test('coverage and overnight recommendation are calculated', () => {
   const coverage = cycleCoverage(initialPlan);
   assert.equal(coverage.planned, 20);
-  assert.equal(coverage.percent, 80);
+  assert.equal(coverage.percent, 7);
   const recommendation = overnightRecommendation(
     dayMetrics(initialPlan['2026-08-03'], defaultSettings),
     defaultSettings
   );
   assert.equal(typeof recommendation.benefit, 'number');
   assert.equal(typeof recommendation.recommended, 'boolean');
+});
+
+test('sales cycle plans every pharmacy exactly once across 12 weeks', () => {
+  const dates=workDates(defaultSettings);
+  assert.equal(dates.length,60);
+  const plan=optimizeCycle(defaultSettings);
+  const integrity=planIntegrity(plan);
+  assert.deepEqual(integrity,{visits:275,unique:275,duplicates:0,unknown:0,missing:0});
+  assert.ok(dates.every(date=>plan[date].length>=4&&plan[date].length<=5));
+});
+
+test('week rebalancing preserves fixed appointments', () => {
+  const plan=optimizeCycle(defaultSettings), dates=workDates(defaultSettings).slice(0,5);
+  const id=plan[dates[2]][0], fixed={[id]:dates[2]};
+  const next=rebalanceWeek(plan,dates,fixed,defaultSettings);
+  assert.ok(next[dates[2]].includes(id));
+  assert.equal(planIntegrity(next).duplicates,0);
 });
 
 test('road routing normalizes OSRM distance, duration, legs and geometry', async () => {
