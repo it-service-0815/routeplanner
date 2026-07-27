@@ -1,4 +1,4 @@
-import {pharmacies,defaultSettings,initialPlan,byId,dayMetrics,optimize,cycleCoverage,overnightRecommendation,workDates,optimizeCycle,rebalanceWeek,planIntegrity} from './core.js';
+import {pharmacies,defaultSettings,initialPlan,byId,dayMetrics,optimize,cycleCoverage,overnightRecommendation,visitReason,dayCapacity,workDates,optimizeCycle,rebalanceWeek,planIntegrity} from './core.js';
 import {routeByRoad} from './routing.js';
 
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -7,6 +7,7 @@ const state=stored||{view:'today',selectedDate:'2026-08-03',plan:clone(initialPl
 state.picker=false; state.pickerQuery=state.pickerQuery||''; state.pickerPriority=state.pickerPriority||'all';
 state.baseline=state.baseline||clone(state.plan);
 state.fixed=state.fixed||{}; state.weekOffset=Number(state.weekOffset||0); state.moveVisit=null; state.storePriority=state.storePriority||'all';
+state.releaseInfo=null; state.showRelease=false;
 const app=document.querySelector('#app'), toast=document.querySelector('#toast');
 let liveMap=null, routeRequest=0;
 const icons={
@@ -36,7 +37,7 @@ function shell(content){
     <nav>${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>
     <div class="profile"><span>AJ</span><div><b>Alex Jaquet</b><small>Außendienst · Rhein-Main</small></div></div>
   </aside><main><div class="mobile-top"><div class="brand"><span class="brand-mark">e</span><span><b>Routenplaner</b><small>Engelhard</small></span></div><span class="avatar">AJ</span></div>${content}</main>
-  <nav class="bottom-nav">${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>${drawer()}${picker()}${moveSheet()}</div>`;
+  <nav class="bottom-nav">${items.map(([id,label])=>`<button data-view="${id}" class="${state.view===id?'active':''}">${icons[id]}<span>${label}</span></button>`).join('')}</nav>${drawer()}${picker()}${moveSheet()}${releaseSheet()}</div>`;
 }
 function top(kicker,title,actions=''){return `<header class="page-head"><div><span class="eyebrow">${kicker}</span><h1>${title}</h1></div><div class="actions">${actions}<span class="avatar desktop">AJ</span></div></header>`}
 const button=(label,id,style='secondary',icon='')=>`<button id="${id}" class="button ${style}">${icon}${label}</button>`;
@@ -54,12 +55,14 @@ function today(){
       <div id="route-list">${metrics.stops.map((p,i)=>stop(p,i)).join('')||empty('Noch keine Besuche','Füge Apotheken hinzu oder lasse den Tag optimieren.')}</div>
       ${state.editing?`<button id="add-stop" class="add-button">${icons.plus} Apotheke auswählen</button>`:`<p class="help">Tippe auf „Bearbeiten“, um den Tagesplan anzupassen.</p>`}
     </section></div><section id="route-comparison" class="route-comparison hidden"></section>
-    <section class="insight ${over.recommended?'hotel':''}"><span class="insight-icon">${over.recommended?'H':'✓'}</span><div><span class="eyebrow">SMARTE EMPFEHLUNG</span><h3>${over.recommended?'Übernachtung wirtschaftlich sinnvoll':'Heute entspannt nach Hause'}</h3><p>${over.recommended?`Du sparst etwa ${over.savedMinutes} Minuten und ${over.savedKm} km. Wirtschaftlicher Vorteil: ${over.benefit} €.`:`Die Heimfahrt dauert etwa ${metrics.homeDrive} Minuten. Eine Übernachtung erzeugt heute keinen wirtschaftlichen Vorteil.`}</p></div><button class="text-button" id="show-insight">Warum?</button></section>`);
+    <section class="insight ${over.recommended?'hotel':''}"><span class="insight-icon">${over.recommended?'H':'✓'}</span><div><span class="eyebrow">SMARTE EMPFEHLUNG</span><h3>${over.recommended?'Übernachtung wirtschaftlich sinnvoll':'Heute entspannt nach Hause'}</h3><p>${over.reason}</p></div><button class="text-button" id="show-insight">Details</button></section>`);
 }
 function stop(p,i){return `<article class="stop" draggable="${state.editing}" data-stop="${p.id}"><span class="stop-index">${state.editing?'⋮⋮':i+1}</span><div class="time-block"><b data-road-time="${p.id}">${p.start}</b><small data-road-leg="${p.id}">+${p.leg} Min.</small></div><button class="stop-copy" data-open="${p.id}"><b>${p.name}</b><span>${p.street}, ${p.city}</span></button><span class="priority p-${p.priority}">${p.priority}</span><span class="duration">${p.duration} Min.</span><a class="icon-link" href="${navUrl(p)}" target="_blank" aria-label="Navigation zu ${p.name}">${icons.nav}</a>${state.editing?'<button class="remove" aria-label="Besuch entfernen">×</button>':''}</article>`}
 function week(){
   const dates=getWeekDates(), total=dates.reduce((s,d)=>s+dayMetrics(state.plan[d]||[],state.settings).total,0);
-  const count=dates.reduce((s,d)=>s+(state.plan[d]||[]).length,0), capacity=dates.length*6, utilization=Math.min(100,Math.round(count/capacity*100));
+  const count=dates.reduce((s,d)=>s+(state.plan[d]||[]).length,0);
+  const available=dates.length*(Number(state.settings.workEnd.slice(0,2))*60+Number(state.settings.workEnd.slice(3))-Number(state.settings.workStart.slice(0,2))*60-Number(state.settings.workStart.slice(3)));
+  const utilization=Math.min(100,Math.round(total/Math.max(1,available)*100));
   const first=dates[0]?new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'short'}).format(new Date(`${dates[0]}T12:00:00`)):'–';
   const last=dates.at(-1)?new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'short'}).format(new Date(`${dates.at(-1)}T12:00:00`)):'–';
   const actions=`<div class="week-switch"><button id="week-prev" ${state.weekOffset===0?'disabled':''}>‹</button><span>Woche ${state.weekOffset+1}</span><button id="week-next" ${state.weekOffset>=11?'disabled':''}>›</button></div>${button('Neu ausbalancieren','optimize-week','primary',icons.spark)}`;
@@ -70,9 +73,9 @@ function week(){
     <section class="card week-note"><span class="insight-icon">✓</span><div><b>${count?'Die Woche kann jederzeit neu berechnet werden.':'Diese Woche ist noch frei.'}</b><p>Manuell fixierte Apotheken und Termine werden bei der Optimierung nicht verschoben.</p></div></section>`);
 }
 function dayCard(date,index){
-  const ids=state.plan[date]||[],m=dayMetrics(ids,state.settings),day=new Intl.DateTimeFormat('de-DE',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).toUpperCase();
+  const ids=state.plan[date]||[],m=dayCapacity(ids,state.settings),day=new Intl.DateTimeFormat('de-DE',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).toUpperCase();
   const label=new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit'}).format(new Date(`${date}T12:00:00`));
-  return `<article class="day-card ${date===state.selectedDate?'selected':''}" data-date="${date}" data-day-drop="${date}"><div class="day-title"><button data-open-day="${date}"><span>${day}</span><b>${label}</b></button><span class="${m.overtime?'load high':'load'}">${m.overtime?'Überlastet':ids.length?'Gut geplant':'Frei'}</span></div><div class="day-route">${m.stops.map(p=>`<div class="week-visit-row ${state.fixed[p.id]?'fixed':''}" draggable="${!state.fixed[p.id]}" data-week-visit="${p.id}"><i class="p-${p.priority}">${p.priority}</i><button data-open="${p.id}"><b>${p.name}</b><small>${p.start} · ${p.duration} Min.</small></button><button class="move-visit" data-move="${p.id}" aria-label="${p.name} verschieben">↔</button><button class="lock-visit" data-lock="${p.id}" data-lock-date="${date}" aria-label="${state.fixed[p.id]?'Fixierung lösen':'Besuch fixieren'}">${state.fixed[p.id]?'●':'○'}</button></div>`).join('')||'<div class="day-empty">Hierher ziehen</div>'}</div><div class="day-foot"><span>${ids.length} Besuche · ${m.distance} km</span><span>Ende ${m.end}</span></div></article>`;
+  return `<article class="day-card ${date===state.selectedDate?'selected':''}" data-date="${date}" data-day-drop="${date}"><div class="day-title"><button data-open-day="${date}"><span>${day}</span><b>${label}</b></button><span class="${m.overtime?'load high':'load'}">${m.overtime?`${m.overtime} Min. zu lang`:ids.length?`${m.utilization}% belegt`:'Frei'}</span></div><div class="day-route">${m.stops.map(p=>`<div class="week-visit-row ${state.fixed[p.id]?'fixed':''}" draggable="${!state.fixed[p.id]}" data-week-visit="${p.id}"><i class="p-${p.priority}">${p.priority}</i><button data-open="${p.id}"><b>${p.name}</b><small>${p.start} · ${p.duration} Min.</small></button><button class="move-visit" data-move="${p.id}" aria-label="${p.name} verschieben">↔</button><button class="lock-visit" data-lock="${p.id}" data-lock-date="${date}" aria-label="${state.fixed[p.id]?'Fixierung lösen':'Besuch fixieren'}">${state.fixed[p.id]?'●':'○'}</button></div>`).join('')||'<div class="day-empty">Hierher ziehen</div>'}</div><div class="day-foot"><span>${ids.length} Besuche · ${m.distance} km</span><span>Ende ${m.end}</span></div></article>`;
 }
 function cycle(){
   const c=cycleCoverage(state.plan), integrity=planIntegrity(state.plan), remaining=pharmacies.filter(p=>!Object.values(state.plan).flat().includes(p.id)), allDates=getAllDates();
@@ -89,7 +92,7 @@ function stores(){
 }
 function settings(){
   const s=state.settings;
-  return shell(`${top('PERSÖNLICHES PROFIL','So planst du deinen Tag')}<div class="settings-layout"><section class="card settings-card"><div class="settings-title"><span class="setting-icon">${icons.today}</span><div><h3>Arbeitstag</h3><p>Deine verfügbare Zeit bestimmt die tägliche Kapazität.</p></div></div>${field('Startpunkt','home','text',s.home)}<div class="field-pair">${field('Arbeitsbeginn','workStart','time',s.workStart)}${field('Arbeitsende','workEnd','time',s.workEnd)}</div>${field('Pause in Minuten','breakMinutes','number',s.breakMinutes)}</section>
+  return shell(`${top('PERSÖNLICHES PROFIL','So planst du deinen Tag')}<div class="settings-layout"><section class="card settings-card"><div class="settings-title"><span class="setting-icon">${icons.today}</span><div><h3>Arbeitstag</h3><p>Deine verfügbare Zeit bestimmt die tägliche Kapazität.</p></div></div>${field('Startpunkt','home','text',s.home)}<div class="field-pair">${field('Arbeitsbeginn','workStart','time',s.workStart)}${field('Arbeitsende','workEnd','time',s.workEnd)}</div>${field('Pause in Minuten','breakMinutes','number',s.breakMinutes)}<div class="workday-setting"><span>Arbeitstage</span><div>${[['Mo',1],['Di',2],['Mi',3],['Do',4],['Fr',5]].map(([label,value])=>`<label><input type="checkbox" data-workday="${value}" ${s.workdays.includes(value)?'checked':''}><i>${label}</i></label>`).join('')}</div></div></section>
   <section class="card settings-card"><div class="settings-title"><span class="setting-icon">${icons.stores}</span><div><h3>Besuche</h3><p>Der Standard gilt nur für neue Apotheken.</p></div></div>${field('Standard-Besuchsdauer','defaultDuration','number',s.defaultDuration)}<div class="setting-info">Individuelle Besuchszeiten pflegst du direkt an der jeweiligen Apotheke.</div></section>
   <section class="card settings-card"><div class="settings-title"><span class="setting-icon">${icons.cycle}</span><div><h3>Verkaufsrunde</h3><p>Zeitraum und Arbeitstage definieren die verfügbare Kapazität.</p></div></div><div class="field-pair">${field('Startdatum','cycleStart','date',s.cycleStart)}${field('Enddatum','cycleEnd','date',s.cycleEnd)}</div><div class="setting-info">Montag bis Freitag · ${workDates(s).length} verfügbare Arbeitstage</div></section>
   <section class="card settings-card"><div class="settings-title"><span class="setting-icon">${icons.route}</span><div><h3>Übernachtungen</h3><p>Empfehlung auf Basis deiner Opportunitätskosten.</p></div></div><label class="switch-row"><span>Übernachtungen berücksichtigen</span><input id="overnight" type="checkbox" ${s.overnight?'checked':''}><i></i></label><div class="field-pair">${field('Hotelkosten maximal','hotelLimit','number',s.hotelLimit,'€')}${field('Wert einer Stunde','hourlyValue','number',s.hourlyValue,'€')}</div>${field('Kilometerkosten','kmCost','number',s.kmCost,'€',.01)}</section></div>`);
@@ -99,7 +102,8 @@ function empty(title,copy){return `<div class="empty"><span>${icons.route}</span
 function drawer(){
   if(!state.drawer)return '';
   const p=byId(state.drawer);
-  return `<div class="scrim" data-close><aside class="drawer"><button class="drawer-close" data-close>×</button><span class="store-symbol large">${icons.stores}</span><span class="priority p-${p.priority}">Priorität ${p.priority}</span><h2>${p.name}</h2><p>${p.street}<br>${p.zip} ${p.city}</p><div class="detail-grid"><span><small>Besuchsdauer</small><b>${p.duration} Min.</b></span><span><small>Letzter Besuch</small><b>${new Intl.DateTimeFormat('de-DE').format(new Date(p.lastVisit))}</b></span></div><a class="button primary full" href="${navUrl(p)}" target="_blank">${icons.nav} Navigation starten</a></aside></div>`;
+  const date=Object.entries(state.plan).find(([,ids])=>ids.includes(p.id))?.[0], ids=date?state.plan[date]:[];
+  return `<div class="scrim" data-close><aside class="drawer"><button class="drawer-close" data-close>×</button><span class="store-symbol large">${icons.stores}</span><span class="priority p-${p.priority}">Priorität ${p.priority}</span><h2>${p.name}</h2><p>${p.street}<br>${p.zip} ${p.city}</p><div class="detail-grid"><span><small>Besuchsdauer</small><b>${p.duration} Min.</b></span><span><small>Letzter Besuch</small><b>${new Intl.DateTimeFormat('de-DE').format(new Date(p.lastVisit))}</b></span></div><div class="recommendation-why"><span class="eyebrow">WARUM EMPFOHLEN?</span><p>${visitReason(p,ids,state.settings)}</p></div><a class="button primary full" href="${navUrl(p)}" target="_blank">${icons.nav} Navigation starten</a></aside></div>`;
 }
 function picker(){
   if(!state.picker)return '';
@@ -119,6 +123,11 @@ function moveSheet(){
   if(!state.moveVisit)return '';
   const p=byId(state.moveVisit), dates=getWeekDates();
   return `<div class="move-scrim"><section class="move-sheet"><header><div><span class="eyebrow">BESUCH VERSCHIEBEN</span><h2>${p.name}</h2><p>Wähle den gewünschten Tag. Die Route wird anschließend neu sortiert.</p></div><button id="move-close">×</button></header><div class="move-days">${dates.map(date=>{const m=dayMetrics(state.plan[date]||[],state.settings),label=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'}).format(new Date(`${date}T12:00:00`));return `<button data-move-to="${date}"><span><b>${label}</b><small>${(state.plan[date]||[]).length} Besuche · Ende ${m.end}</small></span><i>${state.fixed[p.id]===date?'Fixiert':'Auswählen'}</i></button>`}).join('')}</div></section></div>`;
+}
+function releaseSheet(){
+  const r=state.releaseInfo;
+  if(!r||!state.showRelease)return '';
+  return `<div class="release-scrim"><section class="release-sheet" role="dialog" aria-modal="true" aria-labelledby="release-title"><span class="release-badge">NEU · VERSION ${r.version}</span><h2 id="release-title">${r.title}</h2><p>Der Routenplaner wurde verbessert.</p><ul>${r.changes.map(change=>`<li>${change}</li>`).join('')}</ul><div class="release-actions"><button id="release-later" class="button ghost">Später</button><button id="release-update" class="button primary">Jetzt aktualisieren</button></div></section></div>`;
 }
 async function loadRoadRoute(){
   if(state.view!=='today'||!document.querySelector('#live-map'))return;
@@ -189,7 +198,10 @@ function bind(){
   if(state.view==='today'){
     document.querySelector('#edit').onclick=()=>{state.editing=!state.editing;render()};
     document.querySelector('#optimize').onclick=()=>{state.plan[state.selectedDate]=optimize(state.plan[state.selectedDate],state.settings);state.baseline[state.selectedDate]=clone(state.plan[state.selectedDate]);save();render();flash('Route neu optimiert')};
-    document.querySelector('#show-insight').onclick=()=>flash('Berechnet aus Fahrzeit, Kilometerkosten, Stundenwert und Hotelbudget.');
+    document.querySelector('#show-insight').onclick=()=>{
+      const over=overnightRecommendation(dayMetrics(state.plan[state.selectedDate]||[],state.settings),state.settings);
+      flash(`${over.savedMinutes} Min. · ${over.savedKm} km · ${over.timeValue+over.mileageValue} € Vorteil · ${state.settings.hotelLimit} € Hotelbudget`);
+    };
     if(state.editing){
       document.querySelectorAll('[data-stop]').forEach(el=>{
         el.ondragstart=()=>el.classList.add('dragging');
@@ -227,6 +239,12 @@ function bind(){
   if(state.view==='settings'){
     document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=()=>{state.settings[el.dataset.setting]=el.type==='number'?Number(el.value):el.value;save();flash('Einstellung gespeichert')});
     document.querySelector('#overnight').onchange=e=>{state.settings.overnight=e.target.checked;save();flash('Übernachtungslogik aktualisiert')};
+    document.querySelectorAll('[data-workday]').forEach(el=>el.onchange=()=>{
+      const day=Number(el.dataset.workday);
+      state.settings.workdays=el.checked?[...new Set([...state.settings.workdays,day])].sort():state.settings.workdays.filter(value=>value!==day);
+      if(!state.settings.workdays.length){state.settings.workdays=[day];el.checked=true;flash('Mindestens ein Arbeitstag ist erforderlich');return}
+      save();render();flash('Arbeitstage aktualisiert');
+    });
   }
   if(state.picker){
     document.querySelector('#picker-close').onclick=document.querySelector('#picker-done').onclick=()=>{state.picker=false;render()};
@@ -243,6 +261,36 @@ function bind(){
     document.querySelector('#move-close').onclick=()=>{state.moveVisit=null;render()};
     document.querySelectorAll('[data-move-to]').forEach(el=>el.onclick=()=>{const id=state.moveVisit,date=el.dataset.moveTo;Object.keys(state.plan).forEach(key=>state.plan[key]=state.plan[key].filter(x=>x!==id));state.plan[date]=state.plan[date]||[];state.plan[date].push(id);state.plan[date]=optimize(state.plan[date],state.settings);if(state.fixed[id])state.fixed[id]=date;state.moveVisit=null;save();render();flash('Besuch auf neuen Tag verschoben')});
   }
+  if(state.showRelease&&state.releaseInfo){
+    document.querySelector('#release-later').onclick=()=>{state.showRelease=false;render()};
+    document.querySelector('#release-update').onclick=async()=>{
+      localStorage.setItem('routeplanner-seen-version',state.releaseInfo.version);
+      const registration=await navigator.serviceWorker?.getRegistration();
+      await registration?.update();
+      if(registration?.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'});
+      const url=new URL(location.href);url.searchParams.set('v',state.releaseInfo.version);location.replace(url);
+    };
+  }
 }
 render();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js');
+async function checkRelease(){
+  try{
+    const response=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok)return;
+    const release=await response.json(), seen=localStorage.getItem('routeplanner-seen-version');
+    state.releaseInfo=release;
+    state.showRelease=seen!==release.version;
+    if(state.showRelease)render();
+  }catch{}
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+  navigator.serviceWorker.register('./sw.js').then(registration=>{
+    registration.update();
+    registration.addEventListener('updatefound',()=>{
+      const worker=registration.installing;
+      worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)checkRelease()});
+    });
+  });
+}
+checkRelease();
