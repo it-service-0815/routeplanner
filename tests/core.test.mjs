@@ -99,6 +99,14 @@ test('sales cycle plans every pharmacy exactly once across 12 weeks', () => {
   assert.ok(Math.max(...dates.map(date=>dayCapacity(plan[date],defaultSettings).utilization))<100);
 });
 
+test('vacation periods are excluded from available workdays', () => {
+  const settings={...defaultSettings,vacations:[{start:'2026-08-10',end:'2026-08-14'}]};
+  const dates=workDates(settings);
+  assert.equal(dates.length,55);
+  assert.ok(!dates.includes('2026-08-10'));
+  assert.ok(!dates.includes('2026-08-14'));
+});
+
 test('week rebalancing preserves fixed appointments', () => {
   const plan=optimizeCycle(defaultSettings), dates=workDates(defaultSettings).slice(0,5);
   const id=plan[dates[2]][0], fixed={[id]:dates[2]};
