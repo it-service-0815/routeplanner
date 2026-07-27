@@ -1,11 +1,10 @@
 {
-  "version": "5.1.1",
+  "version": "5.1.2",
   "released": "2026-07-27",
-  "title": "Intelligentere Einsatzplanung",
+  "title": "Verbesserte mobile Bedienung",
   "changes": [
-    "Tages- und Wochenplanung berücksichtigt jetzt die verfügbare Arbeitszeit.",
-    "Empfehlungen erklären Priorität, Besuchsrückstand und regionale Bündelung.",
-    "Übernachtungen werden transparent nach Zeit-, Kilometer- und Hotelkosten bewertet.",
-    "Neue Versionen werden direkt in der App angekündigt und mit sicherem Cache-Wechsel sofort aktualisiert."
+    "Die Begrüßung passt sich jetzt automatisch der Tageszeit an.",
+    "Die Woche zeigt auf dem Smartphone jeden Tag als gut lesbare eigene Karte.",
+    "Die Optimierung der Verkaufsrunde ist jetzt deutlich sichtbarer und verständlicher platziert."
   ]
 }
